@@ -30,4 +30,4 @@ Attempt | Avg. time run | Avg. iterations | Avg. iter/sec | Avg. normalized erro
 Naive mutations and evaluation | 60.03 s | 10567 | 176.1 | 0.08733 | <img src="./resources/naive.png" height="150">
 Same naive, but load all the pixels at once | 60.03 s | 15070 | 251.1 | 0.07870 | <img src="./resources/naive_load.png" height="150">
 Naive, but with rate limited frame rendering, meaning more time for evaluation | 60.01 s | 15871 | 264.4 | 0.07797 | <img src="./resources/naive_rate_limited.png" height="150">
-
+Evaluating only changed parts of the solution | 60.02 s | 52803 | 879.7 | 0.05097 | <img src="./resources/eval_region.png" height="150">
