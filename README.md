@@ -23,10 +23,9 @@ The measurements are not going to be too precise, as they will be run on my comp
 
 To counter the fact that the evaluations are going to be run on my laptop locally, I will make sure to run the evaluation with the laptop plugged in, with performance mode enabled, and with only the single terminal open.
 
-To counter the randomness factor I will re-run the process 10 times, and take the mean normalized error.
+To counter the randomness factor I will re-run the process 10 times and take the mean of all the values.
 
-
-Attempt | Avg. time run | Avg. iterations | Avg. iter/sec | Avg. normalized error | Notes | Result
---- | --- | --- | --- | --- | --- | ---
-Naive mutations and evaluation | 60.03 s | 10567 | 176.1 | 0.08733 | [[ ./resources/naive.png | height=100px]]
+Attempt | Avg. time run | Avg. iterations | Avg. iter/sec | Avg. normalized error | Result
+--- | --- | --- | --- | --- | --- 
+Naive mutations and evaluation | 60.03 s | 10567 | 176.1 | 0.08733 | <img src="./resources/naive.png" height="150">
 
