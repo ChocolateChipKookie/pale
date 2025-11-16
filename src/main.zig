@@ -212,35 +212,6 @@ fn DrawSolution(solution: *const Solution, canvas: *rl.Image) !void {
     }
 }
 
-fn EvalImageNaive(target: *const rl.Image, canvas: *rl.Image, solution: *const Solution) !u64 {
-    try DrawSolution(solution, canvas);
-    var total: u64 = @intCast(solution.data.items.len);
-
-    if (target.width != canvas.width) {
-        return error.InvalidArgument;
-    }
-    if (target.width != canvas.width) {
-        return error.InvalidArgument;
-    }
-
-    for (0..@intCast(target.height)) |y| {
-        for (0..@intCast(target.width)) |x| {
-            const targetPixel = target.getColor(@intCast(x), @intCast(y));
-            const canvasPixel = canvas.getColor(@intCast(x), @intCast(y));
-            const targetR: i64 = @intCast(targetPixel.r);
-            const canvasR: i64 = @intCast(canvasPixel.r);
-            total += @abs(targetR - canvasR);
-            const targetG: i64 = @intCast(targetPixel.g);
-            const canvasG: i64 = @intCast(canvasPixel.g);
-            total += @abs(targetG - canvasG);
-            const targetB: i64 = @intCast(targetPixel.b);
-            const canvasB: i64 = @intCast(canvasPixel.b);
-            total += @abs(targetB - canvasB);
-        }
-    }
-    return total;
-}
-
 fn EvalImageNaiveLoadColors(target: *const rl.Image, canvas: *rl.Image, solution: *const Solution) !u64 {
     try DrawSolution(solution, canvas);
 
@@ -329,7 +300,7 @@ pub fn main() anyerror!void {
         };
         mutation.mutate(&solution);
 
-        const diff = try EvalImageNaive(&targetImage, &canvasImage, &solution);
+        const diff = try EvalImageNaiveLoadColors(&targetImage, &canvasImage, &solution);
         if (diff <= oldDiff) {
             oldSolution.deinit(alloc);
             oldDiff = diff;

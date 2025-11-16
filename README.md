@@ -28,4 +28,5 @@ To counter the randomness factor I will re-run the process 10 times and take the
 Attempt | Avg. time run | Avg. iterations | Avg. iter/sec | Avg. normalized error | Result
 --- | --- | --- | --- | --- | --- 
 Naive mutations and evaluation | 60.03 s | 10567 | 176.1 | 0.08733 | <img src="./resources/naive.png" height="150">
+Same naive, but load all the pixels at once | 60.03 s | 15070 | 251.1 | 0.07870 | <img src="./resources/naive_load.png" height="150">
 
