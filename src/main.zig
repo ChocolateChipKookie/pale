@@ -287,32 +287,40 @@ pub fn main() anyerror!void {
     const start = std.time.microTimestamp();
     const totalTime = std.time.us_per_min;
 
+    const targetFps = 30;
+    const targetFrameDurationMicro = std.time.us_per_s / targetFps;
+
     while (!rl.windowShouldClose()) {
-        if (std.time.microTimestamp() - start > totalTime) {
+        const frameStart = std.time.microTimestamp();
+        if (frameStart - start > totalTime) {
             break;
         }
-        // Update
-        counter += 1;
 
-        var oldSolution = solution.clone(alloc) catch |err| {
-            std.log.err("Error allocating tmp solution ({})", .{err});
-            return;
-        };
-        mutation.mutate(&solution);
+        while (frameStart + targetFrameDurationMicro > std.time.microTimestamp()) {
+            // Update
+            counter += 1;
+            var oldSolution = solution.clone(alloc) catch |err| {
+                std.log.err("Error allocating tmp solution ({})", .{err});
+                return;
+            };
+            mutation.mutate(&solution);
 
-        const diff = try EvalImageNaiveLoadColors(&targetImage, &canvasImage, &solution);
-        if (diff <= oldDiff) {
-            oldSolution.deinit(alloc);
-            oldDiff = diff;
-            rl.updateTexture(texture, canvasImage.data);
-        } else {
-            solution.deinit(alloc);
-            solution = oldSolution;
+            const diff = try EvalImageNaiveLoadColors(&targetImage, &canvasImage, &solution);
+            if (diff <= oldDiff) {
+                oldSolution.deinit(alloc);
+                oldDiff = diff;
+            } else {
+                solution.deinit(alloc);
+                solution = oldSolution;
+            }
         }
+
+        try DrawSolution(&solution, &canvasImage);
 
         // Draw
         rl.beginDrawing();
         defer rl.endDrawing();
+        rl.updateTexture(texture, canvasImage.data);
         rl.drawTexture(texture, 0, 0, .white);
 
         {
@@ -333,6 +341,7 @@ pub fn main() anyerror!void {
             rl.drawText(text, 10, 100, 20, .light_gray);
         }
     }
+
     const end = std.time.microTimestamp();
     const totalSeconds = @as(f64, @floatFromInt(end - start)) / 1_000_000.0;
     try stdout.print("Iterations: {}\n", .{counter});
@@ -342,5 +351,5 @@ pub fn main() anyerror!void {
     try stdout.flush();
 
     try DrawSolution(&solution, &canvasImage);
-    _ = canvasImage.exportToFile("naive.png");
+    _ = canvasImage.exportToFile("out.png");
 }
