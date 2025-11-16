@@ -21,6 +21,11 @@ const Solution = struct {
     pub fn deinit(self: *Solution, alloc: std.mem.Allocator) void {
         self.data.deinit(alloc);
     }
+
+    pub fn clone(self: *Solution, alloc: std.mem.Allocator) !Solution {
+        const data = try self.data.clone(alloc);
+        return Solution{ .data = data };
+    }
 };
 
 const AddMutation = struct {
@@ -37,21 +42,34 @@ const AddMutation = struct {
     }
 
     pub fn mutate(self: AddMutation, solution: *Solution) void {
-        std.log.info("Add mutation", .{});
+        std.log.debug("Add mutation", .{});
 
+        const sizeRange = 100;
         const x = self.rng.intRangeAtMost(i32, 0, self.imageWidth);
         const y = self.rng.intRangeAtMost(i32, 0, self.imageHeight);
-        const dx = self.rng.intRangeAtMost(i32, -20, 20);
-        const dy = self.rng.intRangeAtMost(i32, -20, 20);
+        const dx = self.rng.intRangeAtMost(i32, -sizeRange, sizeRange);
+        const dy = self.rng.intRangeAtMost(i32, -sizeRange, sizeRange);
         const color = rl.Color.fromInt(self.rng.int(u32));
 
-        solution.*.data.appendAssumeCapacity(.{
-            .x = @min(x, x + dx),
-            .y = @min(y, y + dy),
-            .width = @intCast(@abs(dx)),
-            .height = @intCast(@abs(dy)),
-            .color = color,
-        });
+        if (solution.*.data.capacity == solution.*.data.items.len) {
+            const index = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
+            solution.*.data.items[index] = .{
+                .x = @min(x, x + dx),
+                .y = @min(y, y + dy),
+                .width = @intCast(@abs(dx)),
+                .height = @intCast(@abs(dy)),
+                .color = color,
+            };
+        } else {
+            const index = self.rng.intRangeAtMost(usize, 0, solution.*.data.items.len);
+            solution.*.data.insertAssumeCapacity(index, .{
+                .x = @min(x, x + dx),
+                .y = @min(y, y + dy),
+                .width = @intCast(@abs(dx)),
+                .height = @intCast(@abs(dy)),
+                .color = color,
+            });
+        }
     }
 };
 
@@ -64,8 +82,17 @@ const MoveMutation = struct {
         return res;
     }
 
-    pub fn mutate(_: MoveMutation, _: *Solution) void {
-        std.log.info("Move mutation", .{});
+    pub fn mutate(self: MoveMutation, solution: *Solution) void {
+        if (solution.*.data.items.len == 0) {
+            return;
+        }
+        std.log.debug("Move mutation", .{});
+        const dx = self.rng.intRangeAtMost(i32, -20, 20);
+        const dy = self.rng.intRangeAtMost(i32, -20, 20);
+        const index = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
+
+        solution.*.data.items[index].x += dx;
+        solution.*.data.items[index].y += dy;
     }
 };
 
@@ -78,8 +105,18 @@ const ResizeMutation = struct {
         return res;
     }
 
-    pub fn mutate(_: ResizeMutation, _: *Solution) void {
-        std.log.info("Resize mutation", .{});
+    pub fn mutate(self: ResizeMutation, solution: *Solution) void {
+        if (solution.*.data.items.len == 0) {
+            return;
+        }
+        std.log.debug("Resize mutation", .{});
+        const dx = self.rng.intRangeAtMost(i32, -10, 10);
+        const dy = self.rng.intRangeAtMost(i32, -10, 10);
+        const index = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
+
+        const item = &solution.*.data.items[index];
+        item.width = @max(1, item.width + dx);
+        item.height = @max(1, item.height + dy);
     }
 };
 
@@ -92,8 +129,21 @@ const ColorMutation = struct {
         return res;
     }
 
-    pub fn mutate(_: ColorMutation, _: *Solution) void {
-        std.log.info("Color mutation", .{});
+    pub fn mutate(self: ColorMutation, solution: *Solution) void {
+        if (solution.*.data.items.len == 0) {
+            return;
+        }
+        std.log.debug("Resize mutation", .{});
+        const colorDiffRange = 50;
+        const dr = self.rng.intRangeAtMost(i32, -colorDiffRange, colorDiffRange);
+        const dg = self.rng.intRangeAtMost(i32, -colorDiffRange, colorDiffRange);
+        const db = self.rng.intRangeAtMost(i32, -colorDiffRange, colorDiffRange);
+        const index = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
+
+        const item = &solution.*.data.items[index];
+        item.color.r = @intCast(@mod(@as(i32, item.color.r) + dr, 256));
+        item.color.g = @intCast(@mod(@as(i32, item.color.g) + dg, 256));
+        item.color.b = @intCast(@mod(@as(i32, item.color.b) + db, 256));
     }
 };
 
@@ -155,15 +205,16 @@ const CombinedMutation = struct {
     }
 };
 
-fn DrawSolution(solution: Solution, canvas: *rl.Image) !void {
+fn DrawSolution(solution: *const Solution, canvas: *rl.Image) !void {
     canvas.clearBackground(.black);
     for (solution.data.items) |rect| {
         canvas.drawRectangle(rect.x, rect.y, rect.width, rect.height, rect.color);
     }
 }
 
-fn EvalImageNaive(target: *const rl.Image, canvas: *const rl.Image) !u64 {
-    var total: u64 = 0;
+fn EvalImageNaive(target: *const rl.Image, canvas: *rl.Image, solution: *const Solution) !u64 {
+    try DrawSolution(solution, canvas);
+    var total: u64 = @intCast(solution.data.items.len);
 
     if (target.width != canvas.width) {
         return error.InvalidArgument;
@@ -190,8 +241,10 @@ fn EvalImageNaive(target: *const rl.Image, canvas: *const rl.Image) !u64 {
     return total;
 }
 
-fn EvalImageNaiveLoadColors(target: *const rl.Image, canvas: *const rl.Image) !u64 {
-    var total: u64 = 0;
+fn EvalImageNaiveLoadColors(target: *const rl.Image, canvas: *rl.Image, solution: *const Solution) !u64 {
+    try DrawSolution(solution, canvas);
+
+    var total: u64 = @intCast(solution.data.items.len);
 
     if (target.width != canvas.width) {
         return error.InvalidArgument;
@@ -220,10 +273,11 @@ fn EvalImageNaiveLoadColors(target: *const rl.Image, canvas: *const rl.Image) !u
 }
 
 pub fn main() anyerror!void {
+    rl.setTraceLogLevel(.err);
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
-    var solution = Solution.init(alloc, 1000) catch |err| {
+    var solution = Solution.init(alloc, 100) catch |err| {
         std.log.err("Error allocating solution ({}), exiting!", .{err});
         return;
     };
@@ -250,23 +304,38 @@ pub fn main() anyerror!void {
     const texture = try rl.Texture2D.fromImage(canvasImage);
     defer texture.unload();
 
-    var buffer: [16]u8 = undefined;
+    var buffer: [64]u8 = undefined;
     var counter: i32 = 0;
-    var oldDiff: u64 = @intCast(targetImage.width * targetImage.height * 256 * 3);
+    const maxError: u64 = @intCast(targetImage.width * targetImage.height * 256 * 3);
+    var oldDiff: u64 = maxError;
+
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+
+    const start = std.time.microTimestamp();
+    const totalTime = std.time.us_per_min;
 
     while (!rl.windowShouldClose()) {
+        if (std.time.microTimestamp() - start > totalTime) {
+            break;
+        }
         // Update
         counter += 1;
 
-        const oldSolution = solution;
+        var oldSolution = solution.clone(alloc) catch |err| {
+            std.log.err("Error allocating tmp solution ({})", .{err});
+            return;
+        };
         mutation.mutate(&solution);
 
-        try DrawSolution(solution, &canvasImage);
-        const diff = try EvalImageNaiveLoadColors(&targetImage, &canvasImage);
+        const diff = try EvalImageNaive(&targetImage, &canvasImage, &solution);
         if (diff <= oldDiff) {
+            oldSolution.deinit(alloc);
             oldDiff = diff;
             rl.updateTexture(texture, canvasImage.data);
         } else {
+            solution.deinit(alloc);
             solution = oldSolution;
         }
 
@@ -276,17 +345,31 @@ pub fn main() anyerror!void {
         rl.drawTexture(texture, 0, 0, .white);
 
         {
-            const text = try std.fmt.bufPrintZ(&buffer, "{}", .{counter});
-            rl.drawText(text, 190, 200, 40, .light_gray);
+            const text = try std.fmt.bufPrintZ(&buffer, "Counter: {}", .{counter});
+            rl.drawText(text, 10, 10, 20, .light_gray);
+        }
+        {
+            const text = try std.fmt.bufPrintZ(&buffer, "Fitness: {}", .{oldDiff});
+            rl.drawText(text, 10, 40, 20, .light_gray);
+        }
+        {
+            const text = try std.fmt.bufPrintZ(&buffer, "FPS:     {}", .{rl.getFPS()});
+            rl.drawText(text, 10, 70, 20, .light_gray);
         }
 
         {
-            const text = try std.fmt.bufPrintZ(&buffer, "{}", .{rl.getFPS()});
-            rl.drawText(text, 100, 100, 40, .light_gray);
-        }
-        {
-            const text = try std.fmt.bufPrintZ(&buffer, "{}", .{oldDiff});
-            rl.drawText(text, 100, 400, 40, .light_gray);
+            const text = try std.fmt.bufPrintZ(&buffer, "Rects:   {}", .{solution.data.items.len});
+            rl.drawText(text, 10, 100, 20, .light_gray);
         }
     }
+    const end = std.time.microTimestamp();
+    const totalSeconds = @as(f64, @floatFromInt(end - start)) / 1_000_000.0;
+    try stdout.print("Iterations: {}\n", .{counter});
+    try stdout.print("Seconds: {}\n", .{totalSeconds});
+    try stdout.print("Iters/second: {}\n", .{@as(f64, @floatFromInt(counter)) / totalSeconds});
+    try stdout.print("Normalized error: {}\n", .{@as(f64, @floatFromInt(oldDiff)) / @as(f64, @floatFromInt(maxError))});
+    try stdout.flush();
+
+    try DrawSolution(&solution, &canvasImage);
+    _ = canvasImage.exportToFile("naive.png");
 }
