@@ -92,15 +92,18 @@ pub const Solution = struct {
     }
 
     pub fn draw(self: Solution, canvas: *rl.Image) void {
-        canvas.clearBackground(.black);
-        for (self.data.items) |coloredRect| {
-            const rect = coloredRect.rect;
-            canvas.drawRectangle(rect.x, rect.y, rect.width, rect.height, coloredRect.color);
-        }
+        self.drawRegion(canvas, .{
+            .x = 0,
+            .y = 0,
+            .width = canvas.width,
+            .height = canvas.height,
+        });
     }
 
     pub fn drawRegion(self: Solution, canvas: *rl.Image, region: Rectangle) void {
-        canvas.clearBackground(.black);
+        // canvas.clearBackground is for some reason a lot less performant than just drawing a black rectangle
+        canvas.drawRectangle(region.x, region.y, region.width, region.height, .black);
+
         for (self.data.items) |coloredRect| {
             const rect = coloredRect.rect;
             if (!region.intersects(rect)) {
