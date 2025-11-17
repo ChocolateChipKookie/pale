@@ -20,11 +20,21 @@ pub const ColoredRectangle = struct {
     color: rl.Color = .white,
 };
 
+pub const Fitness = struct {
+    const solutionPenalty = 1000;
+    pixelError: u64,
+    size: u64,
+
+    pub fn total(self: Fitness) u64 {
+        return self.pixelError + self.size * solutionPenalty;
+    }
+};
+
 pub const Solution = struct {
     data: std.ArrayList(ColoredRectangle),
     fitness: union(enum) {
         unevaluated: Rectangle,
-        evaluated: u64,
+        evaluated: Fitness,
     },
 
     pub fn init(alloc: std.mem.Allocator, capacity: usize, imageWidth: i32, imageHeight: i32) !Solution {
@@ -122,7 +132,7 @@ pub const Solution = struct {
         }
 
         self.draw(canvas);
-        var total: u64 = 0;
+        var pixelError: u64 = 0;
 
         const colorsTarget = try rl.loadImageColors(target.*);
         defer rl.unloadImageColors(colorsTarget);
@@ -132,16 +142,19 @@ pub const Solution = struct {
         for (colorsTarget, colorsCanvas) |targetPixel, canvasPixel| {
             const targetR: i64 = @intCast(targetPixel.r);
             const canvasR: i64 = @intCast(canvasPixel.r);
-            total += @abs(targetR - canvasR);
+            pixelError += @abs(targetR - canvasR);
             const targetG: i64 = @intCast(targetPixel.g);
             const canvasG: i64 = @intCast(canvasPixel.g);
-            total += @abs(targetG - canvasG);
+            pixelError += @abs(targetG - canvasG);
             const targetB: i64 = @intCast(targetPixel.b);
             const canvasB: i64 = @intCast(canvasPixel.b);
-            total += @abs(targetB - canvasB);
+            pixelError += @abs(targetB - canvasB);
         }
-        self.fitness = .{ .evaluated = total };
-        return total;
+        self.fitness = .{ .evaluated = .{
+            .pixelError = pixelError,
+            .size = self.data.items.len,
+        } };
+        return self.fitness.evaluated.total();
     }
 
     pub fn evalRegion(self: *Solution, target: *rl.Image, parent: Solution, parentImage: *rl.Image, canvas: *rl.Image) !u64 {
@@ -161,7 +174,7 @@ pub const Solution = struct {
         }
 
         if (self.fitness == .evaluated) {
-            return self.fitness.evaluated;
+            return self.fitness.evaluated.total();
         }
         if (parent.fitness != .evaluated) {
             std.log.err("Parent is not evaluated", .{});
@@ -205,7 +218,12 @@ pub const Solution = struct {
             }
         }
 
-        self.fitness = .{ .evaluated = parent.fitness.evaluated - totalParent + totalChild };
-        return self.fitness.evaluated;
+        const pixelError = parent.fitness.evaluated.pixelError - totalParent + totalChild;
+
+        self.fitness = .{ .evaluated = .{
+            .pixelError = pixelError,
+            .size = self.data.items.len,
+        } };
+        return self.fitness.evaluated.total();
     }
 };

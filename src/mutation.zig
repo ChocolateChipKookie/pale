@@ -132,11 +132,31 @@ const ColorMutation = struct {
     }
 };
 
+const DeleteMutation = struct {
+    rng: *const std.Random = undefined,
+
+    pub fn init(rng: *const std.Random) DeleteMutation {
+        var res = DeleteMutation{};
+        res.rng = rng;
+        return res;
+    }
+
+    pub fn mutate(self: DeleteMutation, solution: *Solution) void {
+        if (solution.*.data.items.len == 0) {
+            return;
+        }
+        const index = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
+        const item = solution.data.orderedRemove(index);
+        solution.addUnevaluated(item.rect);
+    }
+};
+
 const MutationUnion = union(enum) {
     add: AddMutation,
     move: MoveMutation,
     color: ColorMutation,
     resize: ResizeMutation,
+    delete: DeleteMutation,
 
     pub fn mutate(self: MutationUnion, solution: *Solution) void {
         switch (self) {
@@ -146,8 +166,8 @@ const MutationUnion = union(enum) {
 };
 
 pub const CombinedMutation = struct {
-    mutations: [4]MutationUnion,
-    weights: [4]i32,
+    mutations: [5]MutationUnion,
+    weights: [5]i32,
     rng: *const std.Random,
 
     pub fn init(rng: *const std.Random, imageWidth: i32, imageHeight: i32) CombinedMutation {
@@ -170,9 +190,12 @@ pub const CombinedMutation = struct {
                 .{
                     .resize = ResizeMutation.init(rng),
                 },
+                .{
+                    .delete = DeleteMutation.init(rng),
+                },
             },
             .weights = .{
-                10, 10, 10, 10,
+                10, 10, 10, 10, 1,
             },
         };
     }

@@ -36,7 +36,7 @@ pub fn main() anyerror!void {
     });
     const rng = prng.random();
 
-    var bestSolution = Solution.init(alloc, 100, targetImage.width, targetImage.height) catch |err| {
+    var bestSolution = Solution.init(alloc, 1000, targetImage.width, targetImage.height) catch |err| {
         std.log.err("Error allocating solution ({}), exiting!", .{err});
         return;
     };
@@ -73,7 +73,7 @@ pub fn main() anyerror!void {
             mutation.mutate(&testSolution);
 
             _ = try testSolution.evalRegion(&targetImage, bestSolution, &bestCanvasImage, &canvasImage);
-            if (testSolution.fitness.evaluated <= bestSolution.fitness.evaluated) {
+            if (testSolution.fitness.evaluated.total() <= bestSolution.fitness.evaluated.total()) {
                 testSolution.cloneIntoAssumingCapacity(&bestSolution);
                 testSolution.draw(&bestCanvasImage);
                 rl.updateTexture(texture, bestCanvasImage.data);
@@ -91,7 +91,7 @@ pub fn main() anyerror!void {
             rl.drawText(text, 10, 10, 20, .light_gray);
         }
         {
-            const text = try std.fmt.bufPrintZ(&buffer, "Fitness: {}", .{bestSolution.fitness.evaluated});
+            const text = try std.fmt.bufPrintZ(&buffer, "Fitness: {}", .{bestSolution.fitness.evaluated.pixelError});
             rl.drawText(text, 10, 40, 20, .light_gray);
         }
         {
@@ -110,7 +110,7 @@ pub fn main() anyerror!void {
     try stdout.print("Iterations: {}\n", .{counter});
     try stdout.print("Seconds: {}\n", .{totalSeconds});
     try stdout.print("Iters/second: {}\n", .{@as(f64, @floatFromInt(counter)) / totalSeconds});
-    try stdout.print("Normalized error: {}\n", .{@as(f64, @floatFromInt(bestSolution.fitness.evaluated)) / @as(f64, @floatFromInt(Solution.maxError(targetImage.width, targetImage.height)))});
+    try stdout.print("Normalized error: {}\n", .{@as(f64, @floatFromInt(bestSolution.fitness.evaluated.pixelError)) / @as(f64, @floatFromInt(Solution.maxError(targetImage.width, targetImage.height)))});
     try stdout.flush();
 
     _ = bestCanvasImage.exportToFile("out.png");
