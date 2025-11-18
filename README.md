@@ -33,3 +33,4 @@ Naive, but with rate limited frame rendering, meaning more time for evaluation |
 Evaluating only changed parts of the solution | 60.02 s | 52803 | 879.7 | 0.05097 | <img src="./resources/eval_region.png" height="150">
 Replace image.clearBackground with image.drawRectangle | 60.02 s | 576317 | 9602 | 0.04047 | <img src="./resources/eval_rect.png" height="150">
 Remove upper bound for number of rects, and introduce deletion pressure | 60.02 s | 1044038 | 17394.55 | 0.03586 | <img src="./resources/unbound_delete.png" height="150">
+Add swap mutation | 60.02 s | 993655 | 16555 | 0.03535 | <img src="./resources/unbound_swap.png" height="150">

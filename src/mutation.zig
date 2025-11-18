@@ -151,12 +151,39 @@ const DeleteMutation = struct {
     }
 };
 
+const SwapMutation = struct {
+    rng: *const std.Random = undefined,
+
+    pub fn init(rng: *const std.Random) SwapMutation {
+        var res = SwapMutation{};
+        res.rng = rng;
+        return res;
+    }
+
+    pub fn mutate(self: SwapMutation, solution: *Solution) void {
+        if (solution.*.data.items.len == 0) {
+            return;
+        }
+        // Removing a rectangle, and moving it back or forward is better for
+        // the evaluator then just swapping 2 rectangles
+        // In the case you just move the position of a single rectangle, we
+        // just have to re-evaluate its bounding rect, while with 2 rectangles
+        // we would have to evaluate the min-max box of the 2 swapped rectangles
+        const indexSrc = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
+        const indexDest = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
+        const item = solution.data.orderedRemove(indexSrc);
+        solution.data.insertAssumeCapacity(indexDest, item);
+        solution.addUnevaluated(item.rect);
+    }
+};
+
 const MutationUnion = union(enum) {
     add: AddMutation,
     move: MoveMutation,
     color: ColorMutation,
     resize: ResizeMutation,
     delete: DeleteMutation,
+    swap: SwapMutation,
 
     pub fn mutate(self: MutationUnion, solution: *Solution) void {
         switch (self) {
@@ -166,8 +193,8 @@ const MutationUnion = union(enum) {
 };
 
 pub const CombinedMutation = struct {
-    mutations: [5]MutationUnion,
-    weights: [5]i32,
+    mutations: [6]MutationUnion,
+    weights: [6]i32,
     rng: *const std.Random,
 
     pub fn init(rng: *const std.Random, imageWidth: i32, imageHeight: i32) CombinedMutation {
@@ -193,9 +220,12 @@ pub const CombinedMutation = struct {
                 .{
                     .delete = DeleteMutation.init(rng),
                 },
+                .{
+                    .swap = SwapMutation.init(rng),
+                },
             },
             .weights = .{
-                10, 10, 10, 10, 1,
+                10, 10, 10, 10, 1, 2,
             },
         };
     }

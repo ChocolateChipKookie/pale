@@ -17,7 +17,7 @@ pub const Rectangle = struct {
 
 pub const ColoredRectangle = struct {
     rect: Rectangle,
-    color: rl.Color = .white,
+    color: rl.Color,
 };
 
 pub const Fitness = struct {
