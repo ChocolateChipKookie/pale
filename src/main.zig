@@ -1,12 +1,39 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const rl = @import("raylib");
 const Solution = @import("solution.zig").Solution;
 const CombinedMutation = @import("mutation.zig").CombinedMutation;
 
+/// Wrapper to handle allocator differences between native and WASM builds
+const AllocatorWrapper = if (builtin.target.os.tag == .emscripten)
+    struct {
+        fn init() @This() {
+            return .{};
+        }
+        fn deinit(_: *@This()) void {}
+        fn allocator(_: *@This()) std.mem.Allocator {
+            return std.heap.c_allocator;
+        }
+    }
+else
+    struct {
+        gpa: std.heap.GeneralPurposeAllocator(.{}) = .{},
+
+        fn init() @This() {
+            return .{};
+        }
+        fn deinit(self: *@This()) void {
+            _ = self.gpa.deinit();
+        }
+        fn allocator(self: *@This()) std.mem.Allocator {
+            return self.gpa.allocator();
+        }
+    };
+
 pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const alloc = gpa.allocator();
+    var alloc_wrapper = AllocatorWrapper.init();
+    defer alloc_wrapper.deinit();
+    const alloc = alloc_wrapper.allocator();
 
     var targetImage = try rl.Image.init("earring.png");
     defer targetImage.unload();
