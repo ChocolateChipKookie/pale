@@ -21,12 +21,24 @@ pub const ColoredRectangle = struct {
 };
 
 pub const Fitness = struct {
-    const solutionPenalty = 1000;
+    const solutionPenalty = 100;
+    // Total pixel difference over the whole image
+    // Dominates the total error calculation, also main driving factor
     pixelError: u64,
+    // Number of rectangles in solution
+    // Nudges toward deleting useless rectangles, multiplied with penalty
+    // factor to also delete very small rectangles
     size: u64,
+    // Total area should always be smaller then solution penalty assuming
+    // that the max error per pixel is 3 * 255 and
+    // Only case where this might not be the case is if there is a lot of
+    // overlayed rectangles, which is undesireable anyways
+    // NOTE: this assumes full opacity, calcultion might be different for
+    //       non-opaque rectangles
+    totalArea: u64,
 
     pub fn total(self: Fitness) u64 {
-        return self.pixelError + self.size * solutionPenalty;
+        return self.pixelError + self.size * solutionPenalty + self.totalArea;
     }
 };
 
@@ -131,14 +143,19 @@ pub const Solution = struct {
             return error.InvalidArgument;
         }
 
+        var totalArea: u64 = 0;
+        for (self.data.items) |rect| {
+            totalArea += @intCast(rect.rect.height * rect.rect.width);
+        }
+
         self.draw(canvas);
-        var pixelError: u64 = 0;
 
         const colorsTarget = try rl.loadImageColors(target.*);
         defer rl.unloadImageColors(colorsTarget);
         const colorsCanvas = try rl.loadImageColors(canvas.*);
         defer rl.unloadImageColors(colorsCanvas);
 
+        var pixelError: u64 = 0;
         for (colorsTarget, colorsCanvas) |targetPixel, canvasPixel| {
             const targetR: i64 = @intCast(targetPixel.r);
             const canvasR: i64 = @intCast(canvasPixel.r);
@@ -153,6 +170,7 @@ pub const Solution = struct {
         self.fitness = .{ .evaluated = .{
             .pixelError = pixelError,
             .size = self.data.items.len,
+            .totalArea = totalArea,
         } };
         return self.fitness.evaluated.total();
     }
@@ -180,6 +198,12 @@ pub const Solution = struct {
             std.log.err("Parent is not evaluated", .{});
             return error.InvalidArgument;
         }
+
+        var totalArea: u64 = 0;
+        for (self.data.items) |rect| {
+            totalArea += @intCast(rect.rect.height * rect.rect.width);
+        }
+
         self.drawRegion(canvas, self.fitness.unevaluated);
 
         var totalParent: u64 = 0;
@@ -223,6 +247,7 @@ pub const Solution = struct {
         self.fitness = .{ .evaluated = .{
             .pixelError = pixelError,
             .size = self.data.items.len,
+            .totalArea = totalArea,
         } };
         return self.fitness.evaluated.total();
     }
