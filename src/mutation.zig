@@ -17,8 +17,6 @@ const AddMutation = struct {
     }
 
     pub fn mutate(self: AddMutation, solution: *Solution) void {
-        std.log.debug("Add mutation", .{});
-
         const sizeRange = 100;
         const x = self.rng.intRangeAtMost(i32, 0, self.imageWidth);
         const y = self.rng.intRangeAtMost(i32, 0, self.imageHeight);
@@ -33,6 +31,7 @@ const AddMutation = struct {
             .width = @intCast(@abs(dx)),
             .height = @intCast(@abs(dy)),
         };
+        std.log.debug("Add mutation: x={} y={} width={} height={}", .{ rect.x, rect.y, rect.width, rect.height });
         solution.addUnevaluated(rect);
 
         if (solution.data.capacity == solution.data.items.len) {
@@ -52,55 +51,37 @@ const AddMutation = struct {
     }
 };
 
-const MoveMutation = struct {
+const ResizeMoveMutation = struct {
     rng: *const std.Random = undefined,
 
-    pub fn init(rng: *const std.Random) MoveMutation {
-        var res = MoveMutation{};
+    pub fn init(rng: *const std.Random) ResizeMoveMutation {
+        var res = ResizeMoveMutation{};
         res.rng = rng;
         return res;
     }
 
-    pub fn mutate(self: MoveMutation, solution: *Solution) void {
+    pub fn mutate(self: ResizeMoveMutation, solution: *Solution) void {
         if (solution.*.data.items.len == 0) {
             return;
         }
-        std.log.debug("Move mutation", .{});
-        const diffRange = 20;
-        const dx = self.rng.intRangeAtMost(i32, -diffRange, diffRange);
-        const dy = self.rng.intRangeAtMost(i32, -diffRange, diffRange);
-        const index = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
 
-        solution.addUnevaluated(solution.*.data.items[index].rect);
-        solution.*.data.items[index].rect.x += dx;
-        solution.*.data.items[index].rect.y += dy;
-        solution.addUnevaluated(solution.*.data.items[index].rect);
-    }
-};
-
-const ResizeMutation = struct {
-    rng: *const std.Random = undefined,
-
-    pub fn init(rng: *const std.Random) ResizeMutation {
-        var res = ResizeMutation{};
-        res.rng = rng;
-        return res;
-    }
-
-    pub fn mutate(self: ResizeMutation, solution: *Solution) void {
-        if (solution.*.data.items.len == 0) {
-            return;
-        }
-        std.log.debug("Resize mutation", .{});
-        const dx = self.rng.intRangeAtMost(i32, -10, 10);
-        const dy = self.rng.intRangeAtMost(i32, -10, 10);
+        const moveDiffRange = 10;
+        const dxBefore = self.rng.intRangeAtMost(i32, -moveDiffRange, moveDiffRange);
+        const dyBefore = self.rng.intRangeAtMost(i32, -moveDiffRange, moveDiffRange);
+        const dxAfter = self.rng.intRangeAtMost(i32, -moveDiffRange, moveDiffRange);
+        const dyAfter = self.rng.intRangeAtMost(i32, -moveDiffRange, moveDiffRange);
         const index = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
 
         const rect = &solution.data.items[index].rect;
         solution.addUnevaluated(rect.*);
-        rect.width = @max(1, rect.width + dx);
-        rect.height = @max(1, rect.height + dy);
+        rect.x += dxBefore;
+        rect.y += dyBefore;
+        rect.width += dxAfter - dxBefore;
+        rect.height += dyAfter - dyBefore;
+        rect.width = @max(1, rect.width);
+        rect.height = @max(1, rect.height);
         solution.addUnevaluated(rect.*);
+        std.log.debug("Resize mutation: x={} y={} width={} height={}", .{ rect.x, rect.y, rect.width, rect.height });
     }
 };
 
@@ -117,7 +98,6 @@ const ColorMutation = struct {
         if (solution.*.data.items.len == 0) {
             return;
         }
-        std.log.debug("Resize mutation", .{});
         const colorDiffRange = 50;
         const dr = self.rng.intRangeAtMost(i32, -colorDiffRange, colorDiffRange);
         const dg = self.rng.intRangeAtMost(i32, -colorDiffRange, colorDiffRange);
@@ -126,9 +106,11 @@ const ColorMutation = struct {
 
         const item = &solution.*.data.items[index];
         solution.addUnevaluated(item.rect);
-        item.color.r = @intCast(@mod(@as(i32, item.color.r) + dr, 256));
-        item.color.g = @intCast(@mod(@as(i32, item.color.g) + dg, 256));
-        item.color.b = @intCast(@mod(@as(i32, item.color.b) + db, 256));
+        const color = &item.color;
+        color.r = @intCast(@mod(@as(i32, item.color.r) + dr, 256));
+        color.g = @intCast(@mod(@as(i32, item.color.g) + dg, 256));
+        color.b = @intCast(@mod(@as(i32, item.color.b) + db, 256));
+        std.log.debug("Color mutation: x={} y={} b={}", .{ color.r, color.g, color.b });
     }
 };
 
@@ -148,6 +130,7 @@ const DeleteMutation = struct {
         const index = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
         const item = solution.data.orderedRemove(index);
         solution.addUnevaluated(item.rect);
+        std.log.debug("Delete mutation: i={}", .{index});
     }
 };
 
@@ -174,14 +157,14 @@ const SwapMutation = struct {
         const item = solution.data.orderedRemove(indexSrc);
         solution.data.insertAssumeCapacity(indexDest, item);
         solution.addUnevaluated(item.rect);
+        std.log.debug("Delete mutation: src_i={} dest_i={}", .{ indexSrc, indexDest });
     }
 };
 
 const MutationUnion = union(enum) {
     add: AddMutation,
-    move: MoveMutation,
     color: ColorMutation,
-    resize: ResizeMutation,
+    resizeMove: ResizeMoveMutation,
     delete: DeleteMutation,
     swap: SwapMutation,
 
@@ -193,8 +176,8 @@ const MutationUnion = union(enum) {
 };
 
 pub const CombinedMutation = struct {
-    mutations: [6]MutationUnion,
-    weights: [6]i32,
+    mutations: [5]MutationUnion,
+    weights: [5]i32,
     rng: *const std.Random,
 
     pub fn init(rng: *const std.Random, imageWidth: i32, imageHeight: i32) CombinedMutation {
@@ -212,10 +195,7 @@ pub const CombinedMutation = struct {
                     .color = ColorMutation.init(rng),
                 },
                 .{
-                    .move = MoveMutation.init(rng),
-                },
-                .{
-                    .resize = ResizeMutation.init(rng),
+                    .resizeMove = ResizeMoveMutation.init(rng),
                 },
                 .{
                     .delete = DeleteMutation.init(rng),
@@ -225,7 +205,7 @@ pub const CombinedMutation = struct {
                 },
             },
             .weights = .{
-                10, 10, 10, 10, 1, 2,
+                10, 10, 20, 1, 2,
             },
         };
     }
