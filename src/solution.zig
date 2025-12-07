@@ -21,7 +21,7 @@ pub const ColoredRectangle = struct {
 };
 
 pub const Fitness = struct {
-    const solutionPenalty = 100;
+    const solutionPenalty = 200;
     // Total pixel difference over the whole image
     // Dominates the total error calculation, also main driving factor
     pixelError: u64,
