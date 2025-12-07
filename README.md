@@ -27,7 +27,7 @@ To counter the randomness factor I will re-run the process 10 times and take the
 
 Attempt | Avg. time run | Avg. iterations | Avg. iter/sec | Avg. normalized error | Result | Commit hash
 --- | --- | --- | --- | --- | --- | ---
-Naive mutations and evaluation | 60.03 s | 10567 | 176.1 | 0.08733 | <img src="./resources/naive.png" height="150"> | f2f32b3
+Naive mutations and evaluation | 60.03 s | 10567 | 176.1 | 0.08733 | <img src="./resources/naive.png" height="150"> | [f2f32b3](/commit/430aad8)
 Same naive, but load all the pixels at once | 60.03 s | 15070 | 251.1 | 0.07870 | <img src="./resources/naive_load.png" height="150"> | 48ea0fd
 Naive, but with rate limited frame rendering, meaning more time for evaluation | 60.01 s | 15871 | 264.4 | 0.07797 | <img src="./resources/naive_rate_limited.png" height="150"> | 430aad8
 Evaluating only changed parts of the solution | 60.02 s | 53224 | 886.8 | 0.05114 | <img src="./resources/eval_region.png" height="150"> | 18ae1a1
