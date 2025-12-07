@@ -103,9 +103,10 @@ pub fn main() anyerror!void {
             if (testSolution.fitness.evaluated.total() <= bestSolution.fitness.evaluated.total()) {
                 testSolution.cloneIntoAssumingCapacity(&bestSolution);
                 testSolution.draw(&bestCanvasImage);
-                rl.updateTexture(texture, bestCanvasImage.data);
             }
         }
+
+        rl.updateTexture(texture, bestCanvasImage.data);
 
         // Draw
         rl.beginDrawing();
