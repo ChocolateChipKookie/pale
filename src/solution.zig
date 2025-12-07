@@ -8,10 +8,10 @@ pub const Rectangle = struct {
     height: i32 = 0,
 
     pub fn intersects(self: Rectangle, other: Rectangle) bool {
-        return self.x < other.x + other.width and
-            self.x + self.width > other.x and
-            self.y < other.y + other.height and
-            self.y + self.height > other.y;
+        return self.x <= other.x + other.width and
+            self.x + self.width >= other.x and
+            self.y <= other.y + other.height and
+            self.y + self.height >= other.y;
     }
 };
 
@@ -215,12 +215,12 @@ pub const Solution = struct {
 
         const uneval = self.fitness.unevaluated;
 
-        const xStart = @max(0, @min(uneval.x, canvas.width - 1));
-        const xEnd = @max(0, @min(uneval.x + uneval.width, canvas.width - 1));
-        var y = @max(0, @min(uneval.y, canvas.height - 1));
-        const yEnd = @max(0, @min(uneval.y + uneval.height, canvas.height - 1));
+        const xStart = @max(0, @min(uneval.x, canvas.width));
+        const xEnd = @max(0, @min(uneval.x + uneval.width, canvas.width));
+        var y = @max(0, @min(uneval.y, canvas.height));
+        const yEnd = @max(0, @min(uneval.y + uneval.height, canvas.height));
 
-        while (y <= yEnd) : (y += 1) {
+        while (y < yEnd) : (y += 1) {
             const iStart: usize = @intCast(y * canvas.width + xStart);
             const iEnd: usize = iStart + (xEnd - xStart);
             for (colorsTarget[iStart..iEnd], colorsCanvas[iStart..iEnd], colorsParent[iStart..iEnd]) |targetPixel, canvasPixel, parentPixel| {

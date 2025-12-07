@@ -30,9 +30,11 @@ Attempt | Avg. time run | Avg. iterations | Avg. iter/sec | Avg. normalized erro
 Naive mutations and evaluation | 60.03 s | 10567 | 176.1 | 0.08733 | <img src="./resources/naive.png" height="150">
 Same naive, but load all the pixels at once | 60.03 s | 15070 | 251.1 | 0.07870 | <img src="./resources/naive_load.png" height="150">
 Naive, but with rate limited frame rendering, meaning more time for evaluation | 60.01 s | 15871 | 264.4 | 0.07797 | <img src="./resources/naive_rate_limited.png" height="150">
-Evaluating only changed parts of the solution | 60.02 s | 52803 | 879.7 | 0.05097 | <img src="./resources/eval_region.png" height="150">
-Replace image.clearBackground with image.drawRectangle | 60.02 s | 576317 | 9602 | 0.04047 | <img src="./resources/eval_rect.png" height="150">
-Remove upper bound for number of rects, and introduce deletion pressure | 60.02 s | 1044038 | 17394.55 | 0.03586 | <img src="./resources/unbound_delete.png" height="150">
-Add swap mutation | 60.02 s | 993655 | 16555 | 0.03535 | <img src="./resources/unbound_swap.png" height="150">
-Pull texture update out of busy loop | 60.02 s | 1109911 | 18493 | 0.03463 | <img src="./resources/tex_update_out_of_loop.png" height="150">
-Introduce area downward pressure | 60.02 s | 3454863 | 57564 | 0.02815 | <img src="./resources/area_downward_pressure.png" height="150">
+Evaluating only changed parts of the solution | 60.02 s | 53224 | 886.8 | 0.05114 | <img src="./resources/eval_region.png" height="150">
+Replace image.clearBackground with image.drawRectangle | 60.02 s | 561248 | 9351 | 0.04184 | <img src="./resources/eval_rect.png" height="150">
+Remove upper bound for number of rects, and introduce deletion pressure | 60.02 s | 1022705 | 17040.34 | 0.03524 | <img src="./resources/unbound_delete.png" height="150">
+Add swap mutation | 60.02 s | 919213 | 15315 | 0.03478 | <img src="./resources/unbound_swap.png" height="150">
+Pull texture update out of busy loop | 60.02 s | 1058167 | 17631 | 0.03451 | <img src="./resources/tex_update_out_of_loop.png" height="150">
+Introduce area downward pressure | 60.02 s | 3467283 | 57690 | 0.03134 | <img src="./resources/area_downward_pressure.png" height="150">
+
+NOTE: At some point (after the `Pull texture update out of busy loop`) I noticed that there is an issue with the partial evaluation I was doing (it was an one-off error). To rectify that I re-ran all of the previous runs, but at the end added a total re-evaluation of the best solution, and used the value that it gave (I did not fix the evaluator because that would possibly change the results too much, and I don't want to re-write history). To make it easier to navigate to the commit which the entry in the table is referencing, I will add a commit hash for each row (previously this could be done with git blame).

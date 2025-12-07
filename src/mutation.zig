@@ -35,7 +35,7 @@ const AddMutation = struct {
         };
         solution.addUnevaluated(rect);
 
-        if (solution.*.data.capacity == solution.*.data.items.len) {
+        if (solution.data.capacity == solution.data.items.len) {
             const index = self.rng.intRangeLessThan(usize, 0, solution.*.data.items.len);
             solution.addUnevaluated(solution.data.items[index].rect);
             solution.*.data.items[index] = .{

@@ -82,7 +82,7 @@ pub fn main() anyerror!void {
     const stdout = &stdout_writer.interface;
 
     const start = std.time.microTimestamp();
-    const totalTime = std.time.us_per_min;
+    const totalTime = 60 * std.time.us_per_s;
 
     const targetFps = 30;
     const targetFrameDurationMicro = std.time.us_per_s / targetFps;
@@ -132,6 +132,13 @@ pub fn main() anyerror!void {
             rl.drawText(text, 10, 100, 20, .light_gray);
         }
     }
+
+    // Sanity chekck, to validate that the partial region-based evaluation did
+    // not end up being wrong during some accumulation part
+    const bestFitnessAccumulated = bestSolution.fitness.evaluated.pixelError;
+    _ = try bestSolution.eval(&targetImage, &canvasImage);
+    const actualBestFitness = bestSolution.fitness.evaluated.pixelError;
+    std.log.info("Actual: {}, Partial: {}", .{ actualBestFitness, bestFitnessAccumulated });
 
     const end = std.time.microTimestamp();
     const totalSeconds = @as(f64, @floatFromInt(end - start)) / 1_000_000.0;
