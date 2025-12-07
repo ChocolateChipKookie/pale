@@ -35,3 +35,4 @@ Replace image.clearBackground with image.drawRectangle | 60.02 s | 576317 | 9602
 Remove upper bound for number of rects, and introduce deletion pressure | 60.02 s | 1044038 | 17394.55 | 0.03586 | <img src="./resources/unbound_delete.png" height="150">
 Add swap mutation | 60.02 s | 993655 | 16555 | 0.03535 | <img src="./resources/unbound_swap.png" height="150">
 Pull texture update out of busy loop | 60.02 s | 1109911 | 18493 | 0.03463 | <img src="./resources/tex_update_out_of_loop.png" height="150">
+Introduce area downward pressure | 60.02 s | 3454863 | 57564 | 0.02815 | <img src="./resources/area_downward_pressure.png" height="150">
