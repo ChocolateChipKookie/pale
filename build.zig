@@ -34,30 +34,39 @@ pub fn build(b: *std.Build) !void {
 
     if (target.query.os_tag == .emscripten) {
         const emsdk = rlz.emsdk;
+
+        const wasm_mod = b.createModule(.{
+            .root_source_file = b.path("src/wasm_exports.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        wasm_mod.addImport("raylib", raylib);
+
         const wasm = b.addLibrary(.{
             .name = "pale",
-            .root_module = exe_mod,
+            .root_module = wasm_mod,
         });
 
         const install_dir: std.Build.InstallDir = .{ .custom = "web" };
         const emcc_flags = emsdk.emccDefaultFlags(b.allocator, .{ .optimize = optimize });
-        const emcc_settings = emsdk.emccDefaultSettings(b.allocator, .{ .optimize = optimize });
+        var emcc_settings = emsdk.emccDefaultSettings(b.allocator, .{ .optimize = optimize });
+
+        // Export our WASM functions
+        emcc_settings.put("EXPORTED_FUNCTIONS", "['_pale_create','_pale_destroy', '_malloc', '_free']") catch unreachable;
+        emcc_settings.put("EXPORTED_RUNTIME_METHODS", "['ccall','cwrap','UTF8ToString']") catch unreachable;
 
         const emcc_step = emsdk.emccStep(b, raylib_artifact, wasm, .{
             .optimize = optimize,
             .flags = emcc_flags,
             .settings = emcc_settings,
             .install_dir = install_dir,
-            .embed_paths = &.{
-                .{
-                    .src_path = "earring.png",
-                    .virtual_path = "earring.png",
-                },
-            },
         });
-        b.getInstallStep().dependOn(emcc_step);
 
         const html_filename = try std.fmt.allocPrint(b.allocator, "{s}.html", .{wasm.name});
+        const remove_html_file = b.addRemoveDirTree(.{ .cwd_relative = b.getInstallPath(install_dir, html_filename) });
+        remove_html_file.step.dependOn(emcc_step);
+        b.getInstallStep().dependOn(&remove_html_file.step);
+
         const emrun_step = emsdk.emrunStep(
             b,
             b.getInstallPath(install_dir, html_filename),
