@@ -52,8 +52,19 @@ pub fn build(b: *std.Build) !void {
         var emcc_settings = emsdk.emccDefaultSettings(b.allocator, .{ .optimize = optimize });
 
         // Export our WASM functions
-        emcc_settings.put("EXPORTED_FUNCTIONS", "['_pale_create','_pale_destroy', '_malloc', '_free']") catch unreachable;
-        emcc_settings.put("EXPORTED_RUNTIME_METHODS", "['ccall','cwrap','UTF8ToString']") catch unreachable;
+        const exported_funcs = [_][]const u8{
+            "_pale_create",
+            "_pale_destroy",
+            "_pale_get_error_ptr",
+            "_pale_get_error_len",
+            "_pale_clear_error",
+            "_malloc",
+            "_free",
+        };
+
+        const exports_json = try std.fmt.allocPrint(b.allocator, "{f}", .{std.json.fmt(exported_funcs, .{})});
+        emcc_settings.put("EXPORTED_FUNCTIONS", exports_json) catch unreachable;
+        emcc_settings.put("EXPORTED_RUNTIME_METHODS", "['ccall','cwrap']") catch unreachable;
 
         const emcc_step = emsdk.emccStep(b, raylib_artifact, wasm, .{
             .optimize = optimize,
@@ -62,10 +73,16 @@ pub fn build(b: *std.Build) !void {
             .install_dir = install_dir,
         });
 
+        // Remove the auto-generated html file
         const html_filename = try std.fmt.allocPrint(b.allocator, "{s}.html", .{wasm.name});
         const remove_html_file = b.addRemoveDirTree(.{ .cwd_relative = b.getInstallPath(install_dir, html_filename) });
         remove_html_file.step.dependOn(emcc_step);
-        b.getInstallStep().dependOn(&remove_html_file.step);
+
+        // Move all of our html assets to the right location
+        const install_web_artifacts = b.addInstallFile(b.path("web/index.html"), "index.html");
+        install_web_artifacts.dir = install_dir;
+        install_web_artifacts.step.dependOn(&remove_html_file.step);
+        b.getInstallStep().dependOn(&install_web_artifacts.step);
 
         const emrun_step = emsdk.emrunStep(
             b,

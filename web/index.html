@@ -50,11 +50,21 @@
         const destroyBtn = document.getElementById('destroyBtn');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        var zigContext = null;
 
         function log(msg) {
             const time = new Date().toISOString().substr(11, 12);
             logEl.textContent += `[${time}] ${msg}\n`;
             logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function readError(msg) {
+            const len = Module._pale_get_error_len();
+            const ptr = Module._pale_get_error_ptr();
+            const errorBytes = Module.HEAPU8.subarray(ptr, ptr + len);
+            const errorMsg = new TextDecoder().decode(errorBytes);
+            Module._pale_clear_error();
+            return errorMsg;
         }
 
         // Draw a test pattern on the canvas
@@ -104,14 +114,13 @@
             log('Calling pale_create...');
             const seed = BigInt(Date.now());
             const result = Module._pale_create(pixelPtr, 256, 256, 1000, seed);
-            console.log(result);
-            if (result === 0) {
-                log('Context created successfully (returned null)');
+            if (result !== 0) {
+                log('Context created successfully');
                 createBtn.disabled = true;
                 destroyBtn.disabled = false;
+                zigContext = result;
             } else {
-                // Result is a pointer to an error string
-                const errorMsg = Module.UTF8ToString(result);
+                const errorMsg = readError();
                 log(`Error creating context: ${errorMsg}`);
             }
 
@@ -122,7 +131,11 @@
 
         destroyBtn.onclick = () => {
             log('Calling pale_destroy...');
-            Module._pale_destroy();
+            const result = Module._pale_destroy(zigContext);
+            if (result === 0) {
+                const errorMsg = readError();
+                log(`Error creating context: ${errorMsg}`);
+            }
             log('Context destroyed');
             createBtn.disabled = false;
             destroyBtn.disabled = true;
