@@ -58,6 +58,8 @@ pub fn build(b: *std.Build) !void {
             "_pale_get_error_ptr",
             "_pale_get_error_len",
             "_pale_clear_error",
+            "_pale_run_steps",
+            "_pale_get_best_image",
             "_malloc",
             "_free",
         };
@@ -65,6 +67,7 @@ pub fn build(b: *std.Build) !void {
         const exports_json = try std.fmt.allocPrint(b.allocator, "{f}", .{std.json.fmt(exported_funcs, .{})});
         emcc_settings.put("EXPORTED_FUNCTIONS", exports_json) catch unreachable;
         emcc_settings.put("EXPORTED_RUNTIME_METHODS", "['ccall','cwrap']") catch unreachable;
+        emcc_settings.put("INITIAL_MEMORY", "64MB") catch unreachable;
 
         const emcc_step = emsdk.emccStep(b, raylib_artifact, wasm, .{
             .optimize = optimize,

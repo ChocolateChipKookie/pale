@@ -12,6 +12,7 @@ const Context = struct {
     test_solution: Solution,
     mutation: CombinedMutation,
     prng: std.Random.DefaultPrng,
+    random: std.Random,
     iteration_count: u64,
 };
 
@@ -94,7 +95,7 @@ export fn pale_create(
 
     // Initialize PRNG
     ctx.prng = std.Random.DefaultPrng.init(seed);
-    const rng = ctx.prng.random();
+    ctx.random = ctx.prng.random();
 
     // Initialize solutions
     ctx.best_solution = Solution.init(allocator, capacity, width, height) catch {
@@ -126,30 +127,64 @@ export fn pale_create(
         return null;
     };
 
-    ctx.mutation = CombinedMutation.init(&rng, width, height);
+    ctx.mutation = CombinedMutation.init(&ctx.random, width, height);
     ctx.iteration_count = 0;
 
     return ctx;
 }
 
 /// Destroys the optimization context and frees all resources.
-export fn pale_destroy(context: ?*Context) bool {
-    const ctx = context orelse {
+export fn pale_destroy(mb_context: ?*Context) bool {
+    const context = mb_context orelse {
         report_error("Passed context is null", .{});
         return false;
     };
 
-    ctx.best_solution.deinit(allocator);
-    ctx.test_solution.deinit(allocator);
+    context.best_solution.deinit(allocator);
+    context.test_solution.deinit(allocator);
 
     // Free the copied target image data
-    const pixel_count: usize = @intCast(ctx.target_image.width * ctx.target_image.height);
-    const pixel_data: [*]rl.Color = @ptrCast(@alignCast(ctx.target_image.data));
+    const pixel_count: usize = @intCast(context.target_image.width * context.target_image.height);
+    const pixel_data: [*]rl.Color = @ptrCast(@alignCast(context.target_image.data));
     allocator.free(pixel_data[0..pixel_count]);
 
-    rl.unloadImage(ctx.best_canvas);
-    rl.unloadImage(ctx.test_canvas);
+    rl.unloadImage(context.best_canvas);
+    rl.unloadImage(context.test_canvas);
 
-    allocator.destroy(ctx);
+    allocator.destroy(context);
     return true;
+}
+
+/// Run n optimization steps, returning the current best pixel error
+export fn pale_run_steps(context: ?*Context, steps: usize) u64 {
+    const ctx = context orelse {
+        report_error("Passed context is null", .{});
+        return 0;
+    };
+
+    var i: usize = 0;
+    while (i < steps) : (i += 1) {
+        ctx.best_solution.cloneIntoAssumingCapacity(&ctx.test_solution);
+        ctx.mutation.mutate(&ctx.test_solution);
+        _ = ctx.test_solution.evalRegion(&ctx.target_image, ctx.best_solution, &ctx.best_canvas, &ctx.test_canvas) catch {
+            report_error("Error evaluating region", .{});
+            return 0;
+        };
+        if (ctx.test_solution.fitness.evaluated.total() < ctx.best_solution.fitness.evaluated.total()) {
+            ctx.test_solution.cloneIntoAssumingCapacity(&ctx.best_solution);
+            ctx.test_solution.draw(&ctx.best_canvas);
+        }
+    }
+
+    return ctx.best_solution.fitness.evaluated.pixelError;
+}
+
+/// Get image
+export fn pale_get_best_image(context: ?*Context) ?[*]const u8 {
+    const ctx = context orelse {
+        report_error("Passed context is null", .{});
+        return null;
+    };
+
+    return @ptrCast(ctx.best_canvas.data);
 }

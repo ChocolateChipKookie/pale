@@ -35,7 +35,9 @@
     <div>
         <button id="loadBtn">Load Module</button>
         <button id="createBtn" disabled>Create Context</button>
+        <button id="runBtn" disabled>Run</button>
         <button id="destroyBtn" disabled>Destroy Context</button>
+        <input type="file" id="imageInput" accept="image/*" disabled>
     </div>
 
     <canvas id="canvas" width="256" height="256"></canvas>
@@ -47,9 +49,15 @@
         const logEl = document.getElementById('log');
         const loadBtn = document.getElementById('loadBtn');
         const createBtn = document.getElementById('createBtn');
+        const runBtn = document.getElementById('runBtn');
         const destroyBtn = document.getElementById('destroyBtn');
+        const imageInput = document.getElementById('imageInput');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+
+        var width = 256;
+        var height = 256;
+        var channels = 4;
         var zigContext = null;
 
         function log(msg) {
@@ -69,10 +77,10 @@
 
         // Draw a test pattern on the canvas
         function drawTestPattern() {
-            const imageData = ctx.createImageData(256, 256);
-            for (let y = 0; y < 256; y++) {
-                for (let x = 0; x < 256; x++) {
-                    const i = (y * 256 + x) * 4;
+            const imageData = ctx.createImageData(width, height);
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = (y * width + x) * 4;
                     imageData.data[i] = x;       // R
                     imageData.data[i + 1] = y;   // G
                     imageData.data[i + 2] = 128; // B
@@ -80,7 +88,6 @@
                 }
             }
             ctx.putImageData(imageData, 0, 0);
-            return imageData;
         }
 
         function onModuleReady() {
@@ -88,6 +95,10 @@
             log(`Exported functions: ${Object.keys(Module).filter(k => k.startsWith('_pale')).join(', ')}`);
             loadBtn.disabled = true;
             createBtn.disabled = false;
+            imageInput.disabled = false;
+            log('Drawing test pattern...');
+            const imageData = drawTestPattern();
+
         }
 
         // Module is a global created by pale.js
@@ -103,21 +114,22 @@
         };
 
         createBtn.onclick = () => {
-            log('Drawing test pattern...');
-            const imageData = drawTestPattern();
+            const imageData = ctx.getImageData(0, 0, width, height);
 
             log('Allocating pixel buffer in WASM memory...');
-            const pixelCount = 256 * 256 * 4;
+            const pixelCount = width * height * channels;
             const pixelPtr = Module._malloc(pixelCount);
             Module.HEAPU8.set(imageData.data, pixelPtr);
 
             log('Calling pale_create...');
             const seed = BigInt(Date.now());
-            const result = Module._pale_create(pixelPtr, 256, 256, 1000, seed);
+            const result = Module._pale_create(pixelPtr, width, height, 1000, seed);
             if (result !== 0) {
                 log('Context created successfully');
                 createBtn.disabled = true;
+                imageInput.disabled = true;
                 destroyBtn.disabled = false;
+                runBtn.disabled = false;
                 zigContext = result;
             } else {
                 const errorMsg = readError();
@@ -135,11 +147,50 @@
             if (result === 0) {
                 const errorMsg = readError();
                 log(`Error creating context: ${errorMsg}`);
+                return;
             }
             log('Context destroyed');
             createBtn.disabled = false;
+            imageInput.disabled = false;
             destroyBtn.disabled = true;
+            runBtn.disabled = true;
         };
+
+        runBtn.onclick = () => {
+            log('Running 10000 iterations');
+            const result = Module._pale_run_steps(zigContext, 10000);
+            if (result === 0) {
+                const errorMsg = readError();
+                log(`Error running: ${errorMsg}`);
+                return;
+            }
+
+            const dataPtr = Module._pale_get_best_image(zigContext);
+            if (dataPtr === 0){
+                const errorMsg = readError();
+                log(`Error running: ${errorMsg}`);
+                return;
+            }
+            const dataLen = width * height * channels;
+            const imageData = ctx.createImageData(width, height);
+            imageData.data.set(Module.HEAPU8.subarray(dataPtr, dataPtr + dataLen));
+            ctx.putImageData(imageData, 0, 0);
+        };
+
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const img = new Image();
+            img.onload = function() {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                width = img.width;
+                height = img.height;
+            };
+            img.src = URL.createObjectURL(file);
+        });
 
         log('Page loaded. Click "Load Module" to start.');
     </script>
