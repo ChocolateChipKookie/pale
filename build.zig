@@ -81,11 +81,19 @@ pub fn build(b: *std.Build) !void {
         const remove_html_file = b.addRemoveDirTree(.{ .cwd_relative = b.getInstallPath(install_dir, html_filename) });
         remove_html_file.step.dependOn(emcc_step);
 
-        // Move all of our html assets to the right location
-        const install_web_artifacts = b.addInstallFile(b.path("web/index.html"), "index.html");
-        install_web_artifacts.dir = install_dir;
-        install_web_artifacts.step.dependOn(&remove_html_file.step);
-        b.getInstallStep().dependOn(&install_web_artifacts.step);
+        // Install all web assets
+        const web_files = [_][]const u8{
+            "index.html",
+            "style.css",
+            "main.js",
+            "pale-worker.js",
+        };
+        for (web_files) |file| {
+            const install_file = b.addInstallFile(b.path(b.fmt("web/{s}", .{file})), file);
+            install_file.dir = install_dir;
+            install_file.step.dependOn(&remove_html_file.step);
+            b.getInstallStep().dependOn(&install_file.step);
+        }
 
         const emrun_step = emsdk.emrunStep(
             b,

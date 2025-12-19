@@ -6,14 +6,36 @@ The goal for the project (except learning some zig) is to make a genetic algorit
 
 Ideally it will have a graphical progress tracker, and in the best of all worlds runnable in the browser.
 
-## Notes
+## Running
 
-Because the project relies on raylib, and raylib in turn has some system deps, you will need to install those:
+### Native
+
+To build and run the app (skip the `run` if you just want to build it):
 
 ```
-# apt update
-# apt install libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxfixes-dev libxrender-dev libgl1-mesa-dev libglu1-mesa-dev
+zig build run
 ```
+
+I suggest running it with `-Doptimize=ReleaseFast` to get the maximum juice out of it.
+
+### Web
+
+It is currently in the works, but he application can be run in the browser as well.
+To compile the app for the web, run:
+
+```
+zig build -Dtarget=wasm32-emscripten -Doptimize=ReleaseFast
+```
+
+The compiled `.wasm` together with the necessary `index.html` will be output in the `zig-out/web` directory.
+Simple way to take a  look is running a local file server from that directory (`python -m http.server`).
+
+#### TODO
+
+ [ ] Make UI nicer
+ [x] Move the wasm running to a worker
+ [ ] Remove raylib dependency for the wasm build (replace the image class with something self rolled)
+ [ ] Remove emscripten dependency (hopefully making the resulting bundle smaller)
 
 ## Progress
 
