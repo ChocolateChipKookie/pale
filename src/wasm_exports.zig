@@ -14,6 +14,7 @@ const Context = struct {
     prng: std.Random.DefaultPrng,
     random: std.Random,
     iteration_count: u64,
+    target_fps: u32,
 };
 
 const allocator = std.heap.c_allocator;
@@ -66,12 +67,20 @@ export fn pale_create(
     width: i32,
     height: i32,
     capacity: u32,
+    target_fps: u32,
     seed: u64,
 ) ?*Context {
+    if (target_fps == 0 or 60 < target_fps) {
+        report_error("Target FPS has to be in range (0, 60] (got {d})", .{target_fps});
+        return null;
+    }
+
     var ctx = allocator.create(Context) catch {
         report_error("Failed to allocate context", .{});
         return null;
     };
+    ctx.target_fps = target_fps;
+
     // Copy target image data
     const pixel_count: usize = @intCast(width * height);
     const pixel_data = allocator.alloc(rl.Color, pixel_count) catch {
@@ -155,15 +164,16 @@ export fn pale_destroy(mb_context: ?*Context) bool {
     return true;
 }
 
-/// Run n optimization steps, returning the current best pixel error
-export fn pale_run_steps(context: ?*Context, steps: usize) u64 {
+/// Run optimization step, rougly aiming to get the right number of iterations to satisfy the target FPS
+export fn pale_run_step(context: ?*Context) u64 {
     const ctx = context orelse {
         report_error("Passed context is null", .{});
         return 0;
     };
 
-    var i: usize = 0;
-    while (i < steps) : (i += 1) {
+    const start = std.time.microTimestamp();
+    const end = start + std.time.us_per_s / ctx.target_fps;
+    while (end > std.time.microTimestamp()) {
         ctx.best_solution.cloneIntoAssumingCapacity(&ctx.test_solution);
         ctx.mutation.mutate(&ctx.test_solution);
         _ = ctx.test_solution.evalRegion(&ctx.target_image, ctx.best_solution, &ctx.best_canvas, &ctx.test_canvas) catch {
@@ -174,6 +184,7 @@ export fn pale_run_steps(context: ?*Context, steps: usize) u64 {
             ctx.test_solution.cloneIntoAssumingCapacity(&ctx.best_solution);
             ctx.test_solution.draw(&ctx.best_canvas);
         }
+        ctx.iteration_count += 1;
     }
 
     return ctx.best_solution.fitness.evaluated.pixelError;
@@ -187,4 +198,19 @@ export fn pale_get_best_image(context: ?*Context) ?[*]const u8 {
     };
 
     return @ptrCast(ctx.best_canvas.data);
+}
+
+/// Get total iterations
+export fn pale_get_iterations(context: ?*Context) u64 {
+    const ctx = context orelse {
+        report_error("Passed context is null", .{});
+        return 0;
+    };
+
+    if (ctx.iteration_count == 0) {
+        report_error("The program has not been run yet", .{});
+        return 0;
+    }
+
+    return ctx.iteration_count;
 }

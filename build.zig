@@ -58,8 +58,9 @@ pub fn build(b: *std.Build) !void {
             "_pale_get_error_ptr",
             "_pale_get_error_len",
             "_pale_clear_error",
-            "_pale_run_steps",
+            "_pale_run_step",
             "_pale_get_best_image",
+            "_pale_get_iterations",
             "_malloc",
             "_free",
         };

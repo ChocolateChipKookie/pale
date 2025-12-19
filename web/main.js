@@ -8,6 +8,7 @@ const iterationsEl = document.getElementById("iterations");
 const fitnessEl = document.getElementById("fitness");
 const statusEl = document.getElementById("status");
 const logEl = document.getElementById("log");
+const targetFPS = 30;
 
 let worker = null;
 let width = 256;
@@ -58,9 +59,10 @@ function createContext() {
   worker.postMessage({
     type: "create",
     data: {
-      pixels: sourceImageData.data,
-      w: width,
-      h: height,
+      imagePixels: sourceImageData.data,
+      imageWidth: width,
+      imageHeight: height,
+      targetFPS: targetFPS,
       capacity: 1000,
       seed: Date.now(),
     },

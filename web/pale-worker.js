@@ -1,4 +1,4 @@
-importScripts('pale.js');
+importScripts("pale.js");
 
 let ctx = null;
 let width = 0;
@@ -15,48 +15,62 @@ function getErrorMessage() {
 }
 
 Module.onRuntimeInitialized = () => {
-  postMessage({ type: 'ready' });
+  postMessage({ type: "ready" });
 };
 
 onmessage = (e) => {
   const { type, data } = e.data;
 
   switch (type) {
-    case 'create': {
-      const { pixels, w, h, capacity, seed } = data;
-      width = w;
-      height = h;
+    case "create": {
+      const {
+        imagePixels,
+        imageWidth,
+        imageHeight,
+        targetFPS,
+        capacity,
+        seed,
+      } = data;
+      width = imageWidth;
+      height = imageHeight;
       totalIterations = 0;
 
-      const ptr = Module._malloc(pixels.length);
-      Module.HEAPU8.set(pixels, ptr);
-      ctx = Module._pale_create(ptr, w, h, capacity, BigInt(seed));
+      const ptr = Module._malloc(imagePixels.length);
+      Module.HEAPU8.set(imagePixels, ptr);
+      ctx = Module._pale_create(
+        ptr,
+        width,
+        height,
+        capacity,
+        targetFPS,
+        BigInt(seed),
+      );
       Module._free(ptr);
 
       if (ctx === 0) {
-        postMessage({ type: 'error', message: getErrorMessage() });
+        postMessage({ type: "error", message: getErrorMessage() });
       } else {
-        postMessage({ type: 'created' });
+        postMessage({ type: "created" });
       }
       break;
     }
 
-    case 'start':
+    case "start":
       running = true;
       runLoop();
       break;
 
-    case 'stop':
+    case "stop":
       running = false;
       break;
 
-    case 'destroy':
+    case "destroy":
       running = false;
       if (ctx) {
         Module._pale_destroy(ctx);
         ctx = null;
       }
-      postMessage({ type: 'destroyed' });
+      postMessage({ type: "destroyed" });
       break;
   }
 };
@@ -64,25 +78,20 @@ onmessage = (e) => {
 function runLoop() {
   if (!running || !ctx) return;
 
-  const batchSize = 1000;
-  const fitness = Module._pale_run_steps(ctx, batchSize);
+  const fitness = Module._pale_run_step(ctx);
 
   if (fitness === 0) {
-    postMessage({ type: 'error', message: getErrorMessage() });
+    postMessage({ type: "error", message: getErrorMessage() });
     running = false;
     return;
   }
 
-  totalIterations += batchSize;
-
   const ptr = Module._pale_get_best_image(ctx);
   const len = width * height * 4;
   const pixels = new Uint8Array(Module.HEAPU8.buffer, ptr, len).slice();
+  const iterations = Module._pale_get_iterations(ctx);
 
-  postMessage(
-    { type: 'frame', pixels, fitness, iterations: totalIterations },
-    [pixels.buffer]
-  );
+  postMessage({ type: "frame", pixels, fitness, iterations }, [pixels.buffer]);
 
   setTimeout(runLoop, 0);
 }
