@@ -17,18 +17,8 @@ pub fn build(b: *std.Build) !void {
     const mod = b.addModule("pale", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
-    });
-
-    const exe_mod = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
         .optimize = optimize,
-        .imports = &.{
-            .{ .name = "pale", .module = mod },
-        },
     });
-    exe_mod.addImport("raylib", raylib);
-    exe_mod.addImport("raygui", raygui);
 
     const run_step = b.step("run", "Run the app");
 
@@ -39,6 +29,9 @@ pub fn build(b: *std.Build) !void {
             .root_source_file = b.path("src/wasm_exports.zig"),
             .target = target,
             .optimize = optimize,
+            .imports = &.{
+                .{ .name = "pale", .module = mod },
+            },
         });
         wasm_mod.addImport("raylib", raylib);
 
@@ -105,6 +98,17 @@ pub fn build(b: *std.Build) !void {
         emrun_step.dependOn(emcc_step);
         run_step.dependOn(emrun_step);
     } else {
+        const exe_mod = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "pale", .module = mod },
+            },
+        });
+        exe_mod.addImport("raylib", raylib);
+        exe_mod.addImport("raygui", raygui);
+
         const exe = b.addExecutable(.{
             .name = "pale",
             .root_module = exe_mod,

@@ -1,7 +1,7 @@
 const std = @import("std");
-const rl = @import("raylib");
 const Solution = @import("solution.zig").Solution;
-const Rectangle = @import("solution.zig").Rectangle;
+const Rectangle = @import("graphics.zig").Rectangle;
+const Color = @import("graphics.zig").Color;
 
 const AddMutation = struct {
     rng: *const std.Random,
@@ -22,7 +22,7 @@ const AddMutation = struct {
         const y = self.rng.intRangeAtMost(i32, 0, self.imageHeight);
         const dx = self.rng.intRangeAtMost(i32, -sizeRange, sizeRange);
         const dy = self.rng.intRangeAtMost(i32, -sizeRange, sizeRange);
-        var color = rl.Color.fromInt(self.rng.int(u32));
+        var color = Color.fromInt(self.rng.int(u32));
         color.a = 255;
 
         const rect: Rectangle = .{

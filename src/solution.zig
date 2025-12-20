@@ -1,23 +1,12 @@
-const rl = @import("raylib");
 const std = @import("std");
-
-pub const Rectangle = struct {
-    x: i32 = 0,
-    y: i32 = 0,
-    width: i32 = 0,
-    height: i32 = 0,
-
-    pub fn intersects(self: Rectangle, other: Rectangle) bool {
-        return self.x <= other.x + other.width and
-            self.x + self.width >= other.x and
-            self.y <= other.y + other.height and
-            self.y + self.height >= other.y;
-    }
-};
+const graphics = @import("graphics.zig");
+const Canvas = graphics.Canvas;
+const Color = graphics.Color;
+const Rectangle = graphics.Rectangle;
 
 pub const ColoredRectangle = struct {
     rect: Rectangle,
-    color: rl.Color,
+    color: Color,
 };
 
 pub const Fitness = struct {
@@ -49,7 +38,7 @@ pub const Solution = struct {
         evaluated: Fitness,
     },
 
-    pub fn init(alloc: std.mem.Allocator, capacity: usize, imageWidth: i32, imageHeight: i32) !Solution {
+    pub fn init(alloc: std.mem.Allocator, capacity: usize, image_width: usize, image_height: usize) !Solution {
         const data = try std.ArrayList(ColoredRectangle).initCapacity(alloc, capacity);
         return Solution{
             .data = data,
@@ -57,8 +46,8 @@ pub const Solution = struct {
                 .unevaluated = .{
                     .x = 0,
                     .y = 0,
-                    .width = imageWidth,
-                    .height = imageHeight,
+                    .width = @intCast(image_width),
+                    .height = @intCast(image_height),
                 },
             },
         };
@@ -109,33 +98,33 @@ pub const Solution = struct {
         }
     }
 
-    pub fn maxError(width: i32, height: i32) u64 {
+    pub fn maxError(width: usize, height: usize) u64 {
         return @intCast(width * height * 256 * 3);
     }
 
-    pub fn draw(self: Solution, canvas: *rl.Image) void {
+    pub fn draw(self: Solution, canvas: *Canvas) void {
         self.drawRegion(canvas, .{
             .x = 0,
             .y = 0,
-            .width = canvas.width,
-            .height = canvas.height,
+            .width = @intCast(canvas.width),
+            .height = @intCast(canvas.height),
         });
     }
 
-    pub fn drawRegion(self: Solution, canvas: *rl.Image, region: Rectangle) void {
+    pub fn drawRegion(self: Solution, canvas: *Canvas, region: Rectangle) void {
         // canvas.clearBackground is for some reason a lot less performant than just drawing a black rectangle
-        canvas.drawRectangle(region.x, region.y, region.width, region.height, .black);
+        canvas.drawRectangle(region, .black);
 
         for (self.data.items) |coloredRect| {
             const rect = coloredRect.rect;
             if (!region.intersects(rect)) {
                 continue;
             }
-            canvas.drawRectangle(rect.x, rect.y, rect.width, rect.height, coloredRect.color);
+            canvas.drawRectangle(rect, coloredRect.color);
         }
     }
 
-    pub fn eval(self: *Solution, target: *rl.Image, canvas: *rl.Image) !u64 {
+    pub fn eval(self: *Solution, target: *const Canvas, canvas: *Canvas) !u64 {
         if (target.width != canvas.width) {
             return error.InvalidArgument;
         }
@@ -150,13 +139,8 @@ pub const Solution = struct {
 
         self.draw(canvas);
 
-        const colorsTarget = try rl.loadImageColors(target.*);
-        defer rl.unloadImageColors(colorsTarget);
-        const colorsCanvas = try rl.loadImageColors(canvas.*);
-        defer rl.unloadImageColors(colorsCanvas);
-
         var pixelError: u64 = 0;
-        for (colorsTarget, colorsCanvas) |targetPixel, canvasPixel| {
+        for (target.data, canvas.data) |targetPixel, canvasPixel| {
             const targetR: i64 = @intCast(targetPixel.r);
             const canvasR: i64 = @intCast(canvasPixel.r);
             pixelError += @abs(targetR - canvasR);
@@ -175,19 +159,13 @@ pub const Solution = struct {
         return self.fitness.evaluated.total();
     }
 
-    pub fn evalRegion(self: *Solution, target: *rl.Image, parent: Solution, parentImage: *rl.Image, canvas: *rl.Image) !u64 {
-        if (target.width != canvas.width or target.width != parentImage.width) {
+    pub fn evalRegion(self: *Solution, target_canvas: *const Canvas, parent: Solution, parent_canvas: *Canvas, test_canvas: *Canvas) !u64 {
+        if (target_canvas.width != test_canvas.width or target_canvas.width != parent_canvas.width) {
             std.log.err("Image widths don't match up", .{});
             return error.InvalidArgument;
         }
-        if (target.height != canvas.height or target.height != parentImage.height) {
+        if (target_canvas.height != test_canvas.height or target_canvas.height != parent_canvas.height) {
             std.log.err("Image heights don't match up", .{});
-            return error.InvalidArgument;
-        }
-
-        const expectedFormat = rl.PixelFormat.uncompressed_r8g8b8a8;
-        if (target.format != expectedFormat or parentImage.format != expectedFormat or canvas.format != expectedFormat) {
-            std.log.err("Expected all the input images to have format {}", .{expectedFormat});
             return error.InvalidArgument;
         }
 
@@ -204,39 +182,39 @@ pub const Solution = struct {
             totalArea += @intCast(rect.rect.height * rect.rect.width);
         }
 
-        self.drawRegion(canvas, self.fitness.unevaluated);
+        self.drawRegion(test_canvas, self.fitness.unevaluated);
 
         var totalParent: u64 = 0;
         var totalChild: u64 = 0;
 
-        const colorsTarget: [*]rl.Color = @ptrCast(@alignCast(target.data));
-        const colorsParent: [*]rl.Color = @ptrCast(@alignCast(parentImage.data));
-        const colorsCanvas: [*]rl.Color = @ptrCast(@alignCast(canvas.data));
+        const colors_target: []Color = target_canvas.data;
+        const colors_parent: []Color = parent_canvas.data;
+        const colors_canvas: []Color = test_canvas.data;
 
         const uneval = self.fitness.unevaluated;
 
-        const xStart = @max(0, @min(uneval.x, canvas.width));
-        const xEnd = @max(0, @min(uneval.x + uneval.width, canvas.width));
-        var y = @max(0, @min(uneval.y, canvas.height));
-        const yEnd = @max(0, @min(uneval.y + uneval.height, canvas.height));
+        const xStart = @max(0, @min(uneval.x, test_canvas.width));
+        const xEnd = @max(0, @min(uneval.x + uneval.width, test_canvas.width));
+        var y = @max(0, @min(uneval.y, test_canvas.height));
+        const yEnd = @max(0, @min(uneval.y + uneval.height, test_canvas.height));
 
         while (y < yEnd) : (y += 1) {
-            const iStart: usize = @intCast(y * canvas.width + xStart);
+            const iStart: usize = @intCast(y * test_canvas.width + xStart);
             const iEnd: usize = iStart + (xEnd - xStart);
-            for (colorsTarget[iStart..iEnd], colorsCanvas[iStart..iEnd], colorsParent[iStart..iEnd]) |targetPixel, canvasPixel, parentPixel| {
-                const targetR: i64 = @intCast(targetPixel.r);
-                const canvasR: i64 = @intCast(canvasPixel.r);
-                const parentR: i64 = @intCast(parentPixel.r);
+            for (colors_target[iStart..iEnd], colors_canvas[iStart..iEnd], colors_parent[iStart..iEnd]) |target_pixel, canvas_pixel, parent_pixel| {
+                const targetR: i64 = @intCast(target_pixel.r);
+                const canvasR: i64 = @intCast(canvas_pixel.r);
+                const parentR: i64 = @intCast(parent_pixel.r);
                 totalParent += @abs(targetR - parentR);
                 totalChild += @abs(targetR - canvasR);
-                const targetG: i64 = @intCast(targetPixel.g);
-                const canvasG: i64 = @intCast(canvasPixel.g);
-                const parentG: i64 = @intCast(parentPixel.g);
+                const targetG: i64 = @intCast(target_pixel.g);
+                const canvasG: i64 = @intCast(canvas_pixel.g);
+                const parentG: i64 = @intCast(parent_pixel.g);
                 totalParent += @abs(targetG - parentG);
                 totalChild += @abs(targetG - canvasG);
-                const targetB: i64 = @intCast(targetPixel.b);
-                const canvasB: i64 = @intCast(canvasPixel.b);
-                const parentB: i64 = @intCast(parentPixel.b);
+                const targetB: i64 = @intCast(target_pixel.b);
+                const canvasB: i64 = @intCast(canvas_pixel.b);
+                const parentB: i64 = @intCast(parent_pixel.b);
                 totalParent += @abs(targetB - parentB);
                 totalChild += @abs(targetB - canvasB);
             }

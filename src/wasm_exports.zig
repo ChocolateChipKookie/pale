@@ -1,21 +1,9 @@
 const std = @import("std");
-const rl = @import("raylib");
-const Solution = @import("solution.zig").Solution;
-const CombinedMutation = @import("mutation.zig").CombinedMutation;
-
-/// Global state for the optimization context
-const Context = struct {
-    target_image: rl.Image,
-    best_canvas: rl.Image,
-    test_canvas: rl.Image,
-    best_solution: Solution,
-    test_solution: Solution,
-    mutation: CombinedMutation,
-    prng: std.Random.DefaultPrng,
-    random: std.Random,
-    iteration_count: u64,
-    target_fps: u32,
-};
+const pale = @import("pale");
+const Solution = pale.solution.Solution;
+const CombinedMutation = pale.mutation.CombinedMutation;
+const Canvas = pale.graphics.Canvas;
+const Color = pale.graphics.Color;
 
 const allocator = std.heap.c_allocator;
 var last_error_buffer: [512]u8 = undefined;
@@ -59,6 +47,122 @@ export fn pale_clear_error() void {
     std.log.warn("Trying to clear error, when no error is set", .{});
 }
 
+/// Global state for the optimization context
+const Context = struct {
+    target_canvas: Canvas,
+    best_canvas: Canvas,
+    test_canvas: Canvas,
+    best_solution: Solution,
+    test_solution: Solution,
+    mutation: CombinedMutation,
+    prng: std.Random.DefaultPrng,
+    random: std.Random,
+    iteration_count: u64,
+    target_fps: u32,
+
+    fn init(
+        alloc: std.mem.Allocator,
+        target_pixels: [*]const u8,
+        width: i32,
+        height: i32,
+        capacity: u32,
+        target_fps: u32,
+        seed: u64,
+    ) !*Context {
+        // Validate data
+        if (target_fps == 0 or 60 < target_fps) {
+            report_error("Invalid FPS: {d} (valid range (0, 60]", .{target_fps});
+            return error.InvalidArgument;
+        }
+        // Create canvases
+        const target_canvas = Canvas.init(alloc, @intCast(width), @intCast(height)) catch |e| {
+            report_error("Failed to initialize target canvas", .{});
+            return e;
+        };
+        const image_data: [*]const Color = @ptrCast(@alignCast(target_pixels));
+        @memcpy(target_canvas.data, image_data);
+
+        var best_canvas = target_canvas.clone(alloc) catch |e| {
+            target_canvas.deinit(alloc);
+            report_error("Failed to initialize best canvas", .{});
+            return e;
+        };
+        best_canvas.clear(.black);
+
+        const test_canvas = target_canvas.clone(alloc) catch |e| {
+            target_canvas.deinit(alloc);
+            best_canvas.deinit(alloc);
+            report_error("Failed to initialize test canvas", .{});
+            return e;
+        };
+        test_canvas.clear(.black);
+
+        // PRNG
+        var prng = std.Random.DefaultPrng.init(seed);
+        const random = prng.random();
+
+        // Solutions
+        var best_solution = Solution.init(alloc, capacity, @intCast(width), @intCast(height)) catch |e| {
+            target_canvas.deinit(alloc);
+            best_canvas.deinit(alloc);
+            test_canvas.deinit(alloc);
+            report_error("Failed to initialize best solution", .{});
+            return e;
+        };
+
+        _ = best_solution.eval(&target_canvas, &best_canvas) catch |e| {
+            target_canvas.deinit(alloc);
+            best_canvas.deinit(alloc);
+            test_canvas.deinit(alloc);
+            best_solution.deinit(alloc);
+            report_error("Failed to do initial evaluation", .{});
+            return e;
+        };
+
+        const test_solution = best_solution.clone(alloc) catch |e| {
+            target_canvas.deinit(alloc);
+            best_canvas.deinit(alloc);
+            test_canvas.deinit(alloc);
+            best_solution.deinit(alloc);
+            report_error("Failed to initialize test solution", .{});
+            return e;
+        };
+
+        // Mutations
+        const mutation = CombinedMutation.init(&random, width, height);
+
+        // Final assembly
+        const ctx = alloc.create(Context) catch |e| {
+            target_canvas.deinit(alloc);
+            best_canvas.deinit(alloc);
+            test_canvas.deinit(alloc);
+            best_solution.deinit(alloc);
+            report_error("Failed to allocate context", .{});
+            return e;
+        };
+        ctx.* = Context{
+            .target_canvas = target_canvas,
+            .best_canvas = best_canvas,
+            .test_canvas = test_canvas,
+            .best_solution = best_solution,
+            .test_solution = test_solution,
+            .mutation = mutation,
+            .prng = prng,
+            .random = random,
+            .iteration_count = 0,
+            .target_fps = target_fps,
+        };
+        return ctx;
+    }
+
+    fn deinit(self: *Context, alloc: std.mem.Allocator) void {
+        self.target_canvas.deinit(alloc);
+        self.best_canvas.deinit(alloc);
+        self.test_canvas.deinit(alloc);
+        self.best_solution.deinit(alloc);
+    }
+};
+
 /// Creates a new optimization context.
 /// Takes raw RGBA pixel data from JavaScript (data is copied).
 /// Returns null on success, or an error message string on failure.
@@ -70,76 +174,15 @@ export fn pale_create(
     target_fps: u32,
     seed: u64,
 ) ?*Context {
-    if (target_fps == 0 or 60 < target_fps) {
-        report_error("Target FPS has to be in range (0, 60] (got {d})", .{target_fps});
-        return null;
-    }
-
-    var ctx = allocator.create(Context) catch {
-        report_error("Failed to allocate context", .{});
-        return null;
-    };
-    ctx.target_fps = target_fps;
-
-    // Copy target image data
-    const pixel_count: usize = @intCast(width * height);
-    const pixel_data = allocator.alloc(rl.Color, pixel_count) catch {
-        allocator.destroy(ctx);
-        report_error("Failed to allocate target image data", .{});
-        return null;
-    };
-    @memcpy(pixel_data, @as([*]const rl.Color, @ptrCast(@alignCast(target_pixels)))[0..pixel_count]);
-
-    ctx.target_image = rl.Image{
-        .data = pixel_data.ptr,
-        .width = width,
-        .height = height,
-        .mipmaps = 1,
-        .format = .uncompressed_r8g8b8a8,
-    };
-
-    // Create canvas images
-    ctx.best_canvas = rl.genImageColor(width, height, .black);
-    ctx.test_canvas = rl.genImageColor(width, height, .black);
-
-    // Initialize PRNG
-    ctx.prng = std.Random.DefaultPrng.init(seed);
-    ctx.random = ctx.prng.random();
-
-    // Initialize solutions
-    ctx.best_solution = Solution.init(allocator, capacity, width, height) catch {
-        allocator.free(pixel_data);
-        rl.unloadImage(ctx.best_canvas);
-        rl.unloadImage(ctx.test_canvas);
-        allocator.destroy(ctx);
-        report_error("Failed to allocate best solution", .{});
-        return null;
-    };
-
-    _ = ctx.best_solution.eval(&ctx.target_image, &ctx.best_canvas) catch {
-        ctx.best_solution.deinit(allocator);
-        allocator.free(pixel_data);
-        rl.unloadImage(ctx.best_canvas);
-        rl.unloadImage(ctx.test_canvas);
-        allocator.destroy(ctx);
-        report_error("Failed to evaluate initial solution", .{});
-        return null;
-    };
-
-    ctx.test_solution = ctx.best_solution.clone(allocator) catch {
-        ctx.best_solution.deinit(allocator);
-        allocator.free(pixel_data);
-        rl.unloadImage(ctx.best_canvas);
-        rl.unloadImage(ctx.test_canvas);
-        allocator.destroy(ctx);
-        report_error("Failed to clone test solution", .{});
-        return null;
-    };
-
-    ctx.mutation = CombinedMutation.init(&ctx.random, width, height);
-    ctx.iteration_count = 0;
-
-    return ctx;
+    return Context.init(
+        allocator,
+        target_pixels,
+        width,
+        height,
+        capacity,
+        target_fps,
+        seed,
+    ) catch null;
 }
 
 /// Destroys the optimization context and frees all resources.
@@ -149,17 +192,7 @@ export fn pale_destroy(mb_context: ?*Context) bool {
         return false;
     };
 
-    context.best_solution.deinit(allocator);
-    context.test_solution.deinit(allocator);
-
-    // Free the copied target image data
-    const pixel_count: usize = @intCast(context.target_image.width * context.target_image.height);
-    const pixel_data: [*]rl.Color = @ptrCast(@alignCast(context.target_image.data));
-    allocator.free(pixel_data[0..pixel_count]);
-
-    rl.unloadImage(context.best_canvas);
-    rl.unloadImage(context.test_canvas);
-
+    context.deinit(allocator);
     allocator.destroy(context);
     return true;
 }
@@ -176,7 +209,7 @@ export fn pale_run_step(context: ?*Context) u64 {
     while (end > std.time.microTimestamp()) {
         ctx.best_solution.cloneIntoAssumingCapacity(&ctx.test_solution);
         ctx.mutation.mutate(&ctx.test_solution);
-        _ = ctx.test_solution.evalRegion(&ctx.target_image, ctx.best_solution, &ctx.best_canvas, &ctx.test_canvas) catch {
+        _ = ctx.test_solution.evalRegion(&ctx.target_canvas, ctx.best_solution, &ctx.best_canvas, &ctx.test_canvas) catch {
             report_error("Error evaluating region", .{});
             return 0;
         };

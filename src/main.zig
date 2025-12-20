@@ -1,35 +1,63 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const rl = @import("raylib");
-const Solution = @import("solution.zig").Solution;
-const CombinedMutation = @import("mutation.zig").CombinedMutation;
+const pale = @import("pale");
+const Solution = pale.solution.Solution;
+const Canvas = pale.graphics.Canvas;
+const Color = pale.graphics.Color;
+const CombinedMutation = pale.mutation.CombinedMutation;
+
+const RuntimeError = error{
+    InvalidFormat,
+    InvalidArgument,
+    WrongDimension,
+};
+
+fn imageToCanvas(alloc: std.mem.Allocator, image: rl.Image) !Canvas {
+    if (image.format != rl.PixelFormat.uncompressed_r8g8b8a8) {
+        return RuntimeError.InvalidFormat;
+    }
+    if (image.width <= 0 or image.height <= 0) {
+        return RuntimeError.InvalidArgument;
+    }
+
+    const result = try Canvas.init(alloc, @intCast(image.width), @intCast(image.height));
+    const image_data: [*]Color = @ptrCast(@alignCast(image.data));
+    @memcpy(result.data, image_data);
+    return result;
+}
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
-    var targetImage = try rl.Image.init("earring.png");
-    defer targetImage.unload();
-    if (targetImage.format != rl.PixelFormat.uncompressed_r8g8b8a8) {
-        rl.imageFormat(&targetImage, rl.PixelFormat.uncompressed_r8g8b8a8);
+    // Set up images and canvases
+    var target_image = try rl.Image.init("earring.png");
+    defer target_image.unload();
+    if (target_image.format != rl.PixelFormat.uncompressed_r8g8b8a8) {
+        rl.imageFormat(&target_image, rl.PixelFormat.uncompressed_r8g8b8a8);
     }
+    std.log.info("Image size: {d}x{d}", .{ target_image.width, target_image.height });
 
-    std.log.info("Image size: {d}x{d}", .{ targetImage.width, targetImage.height });
+    const target_canvas = try imageToCanvas(alloc, target_image);
+    defer target_canvas.deinit(alloc);
 
-    var bestCanvasImage = targetImage.copy();
-    defer bestCanvasImage.unload();
+    var best_canvas = try target_canvas.clone(alloc);
+    defer best_canvas.deinit(alloc);
 
-    var canvasImage = targetImage.copy();
-    defer canvasImage.unload();
+    var test_canvas = try target_canvas.clone(alloc);
+    defer test_canvas.deinit(alloc);
 
+    // Set up raylib
     rl.setTraceLogLevel(.err);
-    rl.initWindow(targetImage.width, targetImage.height, "Pale");
+    rl.initWindow(target_image.width, target_image.height, "Pale");
     defer rl.closeWindow();
 
-    const texture = try rl.Texture2D.fromImage(canvasImage);
+    const texture = try rl.Texture2D.fromImage(target_image);
     defer texture.unload();
 
+    // Set up the hill climbing algorithm
     var prng = std.Random.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
         try std.posix.getrandom(std.mem.asBytes(&seed));
@@ -37,16 +65,17 @@ pub fn main() anyerror!void {
     });
     const rng = prng.random();
 
-    var bestSolution = Solution.init(alloc, 1000, targetImage.width, targetImage.height) catch |err| {
+    var best_solution = Solution.init(alloc, 1000, target_canvas.width, target_canvas.height) catch |err| {
         std.log.err("Error allocating solution ({}), exiting!", .{err});
         return;
     };
-    defer bestSolution.deinit(alloc);
-    _ = try bestSolution.eval(&targetImage, &canvasImage);
-    var testSolution = try bestSolution.clone(alloc);
-    defer testSolution.deinit(alloc);
+    defer best_solution.deinit(alloc);
+    _ = try best_solution.eval(&target_canvas, &test_canvas);
 
-    const mutation = CombinedMutation.init(&rng, targetImage.width, targetImage.height);
+    var test_solution = try best_solution.clone(alloc);
+    defer test_solution.deinit(alloc);
+
+    const mutation = CombinedMutation.init(&rng, target_image.width, target_image.height);
 
     var buffer: [64]u8 = undefined;
     var counter: i32 = 0;
@@ -56,31 +85,31 @@ pub fn main() anyerror!void {
     const stdout = &stdout_writer.interface;
 
     const start = std.time.microTimestamp();
-    const totalTime = 60 * std.time.us_per_s;
+    const total_time = 60 * std.time.us_per_s;
 
-    const targetFps = 30;
-    const targetFrameDurationMicro = std.time.us_per_s / targetFps;
+    const target_fps = 30;
+    const target_frame_duration_micro = std.time.us_per_s / target_fps;
 
     while (!rl.windowShouldClose()) {
-        const frameStart = std.time.microTimestamp();
-        if (frameStart - start > totalTime) {
+        const frame_start = std.time.microTimestamp();
+        if (frame_start - start > total_time) {
             break;
         }
 
         // Update
-        while (frameStart + targetFrameDurationMicro > std.time.microTimestamp()) {
+        while (frame_start + target_frame_duration_micro > std.time.microTimestamp()) {
             counter += 1;
-            bestSolution.cloneIntoAssumingCapacity(&testSolution);
-            mutation.mutate(&testSolution);
+            best_solution.cloneIntoAssumingCapacity(&test_solution);
+            mutation.mutate(&test_solution);
 
-            _ = try testSolution.evalRegion(&targetImage, bestSolution, &bestCanvasImage, &canvasImage);
-            if (testSolution.fitness.evaluated.total() <= bestSolution.fitness.evaluated.total()) {
-                testSolution.cloneIntoAssumingCapacity(&bestSolution);
-                testSolution.draw(&bestCanvasImage);
+            _ = try test_solution.evalRegion(&target_canvas, best_solution, &best_canvas, &test_canvas);
+            if (test_solution.fitness.evaluated.total() <= best_solution.fitness.evaluated.total()) {
+                test_solution.cloneIntoAssumingCapacity(&best_solution);
+                test_solution.draw(&best_canvas);
             }
         }
 
-        rl.updateTexture(texture, bestCanvasImage.data);
+        rl.updateTexture(texture, @ptrCast(best_canvas.data));
 
         // Draw
         rl.beginDrawing();
@@ -93,7 +122,7 @@ pub fn main() anyerror!void {
             rl.drawText(text, 10, 10, 20, .light_gray);
         }
         {
-            const text = try std.fmt.bufPrintZ(&buffer, "Fitness: {}", .{bestSolution.fitness.evaluated.pixelError});
+            const text = try std.fmt.bufPrintZ(&buffer, "Fitness: {}", .{best_solution.fitness.evaluated.pixelError});
             rl.drawText(text, 10, 40, 20, .light_gray);
         }
         {
@@ -102,25 +131,23 @@ pub fn main() anyerror!void {
         }
 
         {
-            const text = try std.fmt.bufPrintZ(&buffer, "Rects:   {}", .{bestSolution.data.items.len});
+            const text = try std.fmt.bufPrintZ(&buffer, "Rects:   {}", .{best_solution.data.items.len});
             rl.drawText(text, 10, 100, 20, .light_gray);
         }
     }
 
     // Sanity chekck, to validate that the partial region-based evaluation did
     // not end up being wrong during some accumulation part
-    const bestFitnessAccumulated = bestSolution.fitness.evaluated.pixelError;
-    _ = try bestSolution.eval(&targetImage, &canvasImage);
-    const actualBestFitness = bestSolution.fitness.evaluated.pixelError;
-    std.log.info("Actual: {}, Partial: {}", .{ actualBestFitness, bestFitnessAccumulated });
+    const fitness_accumulated = best_solution.fitness.evaluated.pixelError;
+    _ = try best_solution.eval(&target_canvas, &test_canvas);
+    const fitness_evaluated = best_solution.fitness.evaluated.pixelError;
+    std.log.info("Actual: {}, Partial: {}, Matching: {}", .{ fitness_evaluated, fitness_accumulated, fitness_accumulated == fitness_evaluated });
 
     const end = std.time.microTimestamp();
     const totalSeconds = @as(f64, @floatFromInt(end - start)) / 1_000_000.0;
     try stdout.print("Iterations: {}\n", .{counter});
     try stdout.print("Seconds: {}\n", .{totalSeconds});
     try stdout.print("Iters/second: {}\n", .{@as(f64, @floatFromInt(counter)) / totalSeconds});
-    try stdout.print("Normalized error: {}\n", .{@as(f64, @floatFromInt(bestSolution.fitness.evaluated.pixelError)) / @as(f64, @floatFromInt(Solution.maxError(targetImage.width, targetImage.height)))});
+    try stdout.print("Normalized error: {}\n", .{@as(f64, @floatFromInt(best_solution.fitness.evaluated.pixelError)) / @as(f64, @floatFromInt(Solution.maxError(target_canvas.width, target_canvas.height)))});
     try stdout.flush();
-
-    _ = bestCanvasImage.exportToFile("out.png");
 }
