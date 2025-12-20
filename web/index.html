@@ -21,13 +21,15 @@
   <canvas id="canvas" width="512" height="512"></canvas>
 
   <div class="stats">
-    <span>Iterations: <strong id="iterations">0</strong></span> |
-    <span>Fitness: <strong id="fitness">-</strong></span> |
-    <span>Status: <strong id="status">Loading...</strong></span>
-  </div>
-
-  <div class="actions">
-    <button id="downloadBtn" disabled>Download Image</button>
+    <div class="stats-left"></div>
+    <div class="stats-center">
+      <span>Iterations: <strong id="iterations">0</strong></span> |
+      <span>Fitness: <strong id="fitness">-</strong></span> |
+      <span>Status: <strong id="status">Loading...</strong></span>
+    </div>
+    <div class="stats-right">
+      <button id="downloadBtn" disabled>Download</button>
+    </div>
   </div>
 
   <script src="pale.js"></script>
