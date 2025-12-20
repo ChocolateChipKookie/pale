@@ -200,13 +200,13 @@ const SplitAndMutateMutation = struct {
             const splitAt = self.rng.intRangeLessThan(i32, 1, item1.rect.width);
             item1.rect.width = splitAt;
             item2.rect.width -= splitAt;
-            item2.rect.x += splitAt + 1;
+            item2.rect.x += splitAt;
         } else {
             // Split along y axis
             const splitAt = self.rng.intRangeLessThan(i32, 1, item1.rect.height);
             item1.rect.height = splitAt;
             item2.rect.height -= splitAt;
-            item2.rect.y += splitAt + 1;
+            item2.rect.y += splitAt;
         }
 
         const modifyIndex = self.rng.intRangeAtMost(usize, index, index + 1);
