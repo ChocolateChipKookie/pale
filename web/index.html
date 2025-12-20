@@ -6,7 +6,10 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Pale</h1>
+  <header>
+    <h1>Pale</h1>
+    <button id="themeBtn" aria-label="Toggle theme">☀️</button>
+  </header>
 
   <div class="controls">
     <input type="file" id="imageInput" accept="image/*">
@@ -15,7 +18,7 @@
     <button id="resetBtn" disabled>Reset</button>
   </div>
 
-  <canvas id="canvas" width="256" height="256"></canvas>
+  <canvas id="canvas" width="512" height="512"></canvas>
 
   <div class="stats">
     <span>Iterations: <strong id="iterations">0</strong></span> |
@@ -23,7 +26,9 @@
     <span>Status: <strong id="status">Loading...</strong></span>
   </div>
 
-  <div id="log"></div>
+  <div class="actions">
+    <button id="downloadBtn" disabled>Download Image</button>
+  </div>
 
   <script src="pale.js"></script>
   <script src="main.js"></script>

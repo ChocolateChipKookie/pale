@@ -3,25 +3,44 @@ const ctx = canvas.getContext("2d");
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const resetBtn = document.getElementById("resetBtn");
+const downloadBtn = document.getElementById("downloadBtn");
 const imageInput = document.getElementById("imageInput");
 const iterationsEl = document.getElementById("iterations");
 const fitnessEl = document.getElementById("fitness");
 const statusEl = document.getElementById("status");
-const logEl = document.getElementById("log");
+const themeBtn = document.getElementById("themeBtn");
 const targetFPS = 30;
 
+// Theme handling
+function getSystemTheme() {
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function applyTheme(theme) {
+  document.body.dataset.theme = theme === "light" ? "light" : "";
+  themeBtn.textContent = theme === "light" ? "🌙" : "☀️";
+}
+
+const savedTheme = localStorage.getItem("theme");
+applyTheme(savedTheme || getSystemTheme());
+
+themeBtn.onclick = () => {
+  const isLight = document.body.dataset.theme === "light";
+  const newTheme = isLight ? "dark" : "light";
+  applyTheme(newTheme);
+  localStorage.setItem("theme", newTheme);
+};
+
 let worker = null;
-let width = 256;
-let height = 256;
+let width = 512;
+let height = 512;
 let latestFrame = null;
 let sourceImageData = null;
 let isRunning = false;
 let hasContext = false;
 
 function log(msg) {
-  const time = new Date().toISOString().substr(11, 12);
-  logEl.textContent += `[${time}] ${msg}\n`;
-  logEl.scrollTop = logEl.scrollHeight;
+  console.log(`[Pale] ${msg}`);
 }
 
 function setStatus(s) {
@@ -31,8 +50,9 @@ function setStatus(s) {
 function updateButtons() {
   startBtn.disabled = !hasContext || isRunning;
   stopBtn.disabled = !isRunning;
-  resetBtn.disabled = !hasContext && !sourceImageData;
+  resetBtn.disabled = isRunning || !sourceImageData;
   imageInput.disabled = isRunning;
+  downloadBtn.disabled = !sourceImageData;
 }
 
 function drawTestPattern() {
@@ -40,8 +60,8 @@ function drawTestPattern() {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
-      imageData.data[i] = x;
-      imageData.data[i + 1] = y;
+      imageData.data[i] = x / 2;
+      imageData.data[i + 1] = y / 2;
       imageData.data[i + 2] = 128;
       imageData.data[i + 3] = 255;
     }
@@ -79,7 +99,6 @@ function initWorker() {
       case "ready":
         log("Worker ready");
         setStatus("Ready");
-        drawTestPattern();
         createContext();
         break;
 
@@ -141,18 +160,17 @@ startBtn.onclick = () => {
 
 stopBtn.onclick = () => {
   isRunning = false;
-  setStatus("Stopped");
+  setStatus("Paused");
   updateButtons();
+  startBtn.textContent = "Continue";
   worker.postMessage({ type: "stop" });
-  log("Stopped");
+  log("Paused");
 };
 
 resetBtn.onclick = () => {
-  isRunning = false;
-  worker.postMessage({ type: "destroy" });
-
   iterationsEl.textContent = "0";
   fitnessEl.textContent = "-";
+  startBtn.textContent = "Start";
 
   if (sourceImageData) {
     ctx.putImageData(sourceImageData, 0, 0);
@@ -174,16 +192,20 @@ imageInput.onchange = (e) => {
       hasContext = false;
     }
 
-    canvas.width = img.width;
-    canvas.height = img.height;
-    width = img.width;
-    height = img.height;
+    const maxDim = 720;
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    width = Math.round(img.width * scale);
+    height = Math.round(img.height * scale);
 
-    ctx.drawImage(img, 0, 0);
+    canvas.width = width;
+    canvas.height = height;
+
+    ctx.drawImage(img, 0, 0, width, height);
     sourceImageData = ctx.getImageData(0, 0, width, height);
 
     iterationsEl.textContent = "0";
     fitnessEl.textContent = "-";
+    startBtn.textContent = "Start";
 
     log(`Loaded image: ${width}x${height}`);
     createContext();
@@ -191,6 +213,18 @@ imageInput.onchange = (e) => {
   img.src = URL.createObjectURL(file);
 };
 
+downloadBtn.onclick = () => {
+  canvas.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pale-${Date.now()}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+};
+
 log("Initializing...");
 initWorker();
+drawTestPattern();
 requestAnimationFrame(render);
