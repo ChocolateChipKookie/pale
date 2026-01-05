@@ -1,6 +1,6 @@
 # Pale
 
-Experiment project for testing out zig prior to doing some more serious development in it.
+Experiment project for testing out zig prior to doing some more development with it.
 
 The goal for the project (except learning some zig) is to make a genetic algorithm that will try to mimic an image with some shape.
 
@@ -20,11 +20,10 @@ I suggest running it with `-Doptimize=ReleaseFast` to get the maximum juice out 
 
 ### Web
 
-It is currently in the works, but he application can be run in the browser as well.
-To compile the app for the web, run:
+Currently still under construction, but works. Will be the main way to use the app once finished.
 
 ```
-zig build -Dtarget=wasm32-emscripten -Doptimize=ReleaseFast
+zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
 ```
 
 The compiled `.wasm` together with the necessary `index.html` will be output in the `zig-out/web` directory.
@@ -32,10 +31,17 @@ Simple way to take a  look is running a local file server from that directory (`
 
 #### TODO
 
- [ ] Make UI nicer
+ [x] Make UI nicer
  [x] Move the wasm running to a worker
- [ ] Remove raylib dependency for the wasm build (replace the image class with something self rolled)
- [ ] Remove emscripten dependency (hopefully making the resulting bundle smaller)
+ [x] Remove raylib dependency for the wasm build (replace the image class with something self rolled)
+ [x] Remove emscripten dependency (hopefully making the resulting bundle smaller)
+ [ ] Restructure wasm exports
+ [ ] Add blog post (also check if the 14kb website is actually faster to load)
+ [ ] Add runtime support for loading fast/small binary
+ [ ] Make a separate target for the web build, and enable compiling it with different sanitizers
+ [ ] Check how to write to console from freestanding build
+ [ ] Check if it is possible to autogenerate signatures/jsdoc for the exported emscripten functions
+ [ ] Make adaptive number of iterations to keep FPS
 
 ## Progress
 

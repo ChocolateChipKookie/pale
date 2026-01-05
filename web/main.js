@@ -13,7 +13,9 @@ const targetFPS = 30;
 
 // Theme handling
 function getSystemTheme() {
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  return window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
 }
 
 function applyTheme(theme) {
@@ -91,6 +93,7 @@ function createContext() {
 
 function initWorker() {
   worker = new Worker("pale-worker.js");
+  worker.postMessage({ type: "initialize" });
 
   worker.onmessage = (e) => {
     const { type, pixels, fitness, iterations, message } = e.data;
