@@ -17,9 +17,7 @@ pub const std_options: std.Options = .{
     }.log,
 };
 
-var buffer: [20 * 1024 * 1024]u8 = undefined;
-var fba = std.heap.FixedBufferAllocator.init(&buffer);
-const allocator = fba.allocator();
+const allocator = std.heap.wasm_allocator;
 var last_error_buffer: [512]u8 = undefined;
 var last_error: ?[]const u8 = null;
 
@@ -180,7 +178,6 @@ export fn pale_destroy(mb_context: ?*Context) bool {
 
     context.deinit(allocator);
     allocator.destroy(context);
-    fba.reset();
     return true;
 }
 

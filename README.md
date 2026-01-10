@@ -42,6 +42,7 @@ Simple way to take a  look is running a local file server from that directory (`
  [ ] Check how to write to console from freestanding build
  [ ] Check if it is possible to autogenerate signatures/jsdoc for the exported emscripten functions
  [ ] Make adaptive number of iterations to keep FPS
+ [ ] Expose allocator to JS
 
 ## Progress
 

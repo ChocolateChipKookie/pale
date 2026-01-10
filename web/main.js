@@ -6,7 +6,7 @@ const resetBtn = document.getElementById("resetBtn");
 const downloadBtn = document.getElementById("downloadBtn");
 const imageInput = document.getElementById("imageInput");
 const iterationsEl = document.getElementById("iterations");
-const fitnessEl = document.getElementById("fitness");
+const errorEl = document.getElementById("error");
 const statusEl = document.getElementById("status");
 const themeBtn = document.getElementById("themeBtn");
 const targetFPS = 30;
@@ -115,7 +115,7 @@ function initWorker() {
       case "frame":
         latestFrame = pixels;
         iterationsEl.textContent = iterations.toLocaleString();
-        fitnessEl.textContent = fitness.toLocaleString();
+        errorEl.textContent = fitness.toLocaleString();
         break;
 
       case "destroyed":
@@ -172,7 +172,7 @@ stopBtn.onclick = () => {
 
 resetBtn.onclick = () => {
   iterationsEl.textContent = "0";
-  fitnessEl.textContent = "-";
+  errorEl.textContent = "-";
   startBtn.textContent = "Start";
 
   if (sourceImageData) {
@@ -207,7 +207,7 @@ imageInput.onchange = (e) => {
     sourceImageData = ctx.getImageData(0, 0, width, height);
 
     iterationsEl.textContent = "0";
-    fitnessEl.textContent = "-";
+    errorEl.textContent = "-";
     startBtn.textContent = "Start";
 
     log(`Loaded image: ${width}x${height}`);
