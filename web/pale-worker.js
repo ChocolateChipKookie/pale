@@ -1,68 +1,110 @@
-let wasm = null;
-let exports = null;
-let heap8 = null;
+class WasmModule {
+  exports;
 
-let ctx = null;
-let width = 0;
-let height = 0;
-let running = false;
+  /** @param wasm {WebAssembly.WebAssemblyInstantiatedSource} */
+  constructor(wasm) {
+    this.exports = wasm.instance.exports;
+    this.#cachedMemoryBuffer = wasm.instance.exports.memory.buffer;
+  }
+
+  #cachedMemoryBuffer;
+  #heapUint8Array;
+
+  /** @returns {Uint8Array} */
+  get HEAP8() {
+    if (this.exports.memory.buffer !== this.#cachedMemoryBuffer) {
+      this.#heapUint8Array = new Uint8Array(this.exports.memory.buffer);
+    }
+    return this.#heapUint8Array;
+  }
+}
+
+/**
+ * @param location {string}
+ * @returns {Promise<WasmModule>}
+ */
+async function CreateWasmModule(location) {
+  const module = await WebAssembly.instantiateStreaming(fetch(location), {
+    env: {},
+  });
+  return new WasmModule(module);
+}
+
+/** @type {?WasmModule} */
+let WASM = null;
 
 function handleErrorMessage() {
-  const len = exports.pale_get_error_len();
-  const ptr = exports.pale_get_error_ptr();
+  const len = WASM.exports.pale_get_error_len();
+  const ptr = WASM.exports.pale_get_error_ptr();
   const message = new TextDecoder().decode(heap8.subarray(ptr, ptr + len));
-  exports.pale_clear_error();
+  WASM.exports.pale_clear_error();
   postMessage({ type: "error", message });
   running = false;
 }
+
+class Context {
+  /** @type {number} */
+  ptr;
+  /** @type {number} */
+  width;
+  /** @type {number} */
+  height;
+  /** @type {number} */
+  fps;
+  /** @type {boolean} */
+  running;
+
+  /**
+   * @param ctxPtr {number}
+   * @param width {number}
+   * @param height {number}
+   * @param fps {number}
+   */
+  constructor(ctxPtr, width, height, fps) {
+    this.ptr = ctxPtr;
+    this.width = width;
+    this.height = height;
+    this.fps = fps;
+    this.running = false;
+  }
+}
+
+/** @type {?Context} */
+let ctx = null;
 
 onmessage = async (e) => {
   const { type, data } = e.data;
 
   switch (type) {
     case "initialize": {
-      wasm = await WebAssembly.instantiateStreaming(fetch("pale.wasm"), {
-        env: {},
-      });
-      exports = wasm.instance.exports;
-      heap8 = new Uint8Array(exports.memory.buffer);
+      WASM = await CreateWasmModule("pale.wasm");
       postMessage({ type: "ready" });
       break;
     }
 
     case "create": {
-      const {
-        imagePixels,
-        imageWidth,
-        imageHeight,
-        targetFPS,
-        capacity,
-        seed,
-      } = data;
-      width = imageWidth;
-      height = imageHeight;
-
-      ctx = exports.pale_create(
-        width,
-        height,
-        capacity,
-        targetFPS,
-        BigInt(seed),
+      const ctxPtr = WASM.exports.pale_create(
+        data.width,
+        data.height,
+        data.capacity,
+        BigInt(data.seed),
       );
 
-      if (ctx === 0) {
+      if (ctxPtr === 0) {
         handleErrorMessage();
         break;
       }
 
-      const targetStart = exports.pale_get_target_image(ctx);
+      ctx = new Context(ctxPtr, data.width, data.height, data.fps);
+
+      const targetStart = WASM.exports.pale_get_target_image(ctxPtr);
       if (targetStart === 0) {
         handleErrorMessage();
         break;
       }
-      heap8.set(imagePixels, targetStart);
+      WASM.HEAP8.set(data.pixels, targetStart);
 
-      const initialError = exports.pale_evaluate_best_solution(ctx);
+      const initialError = WASM.exports.pale_evaluate_best_solution(ctxPtr);
       if (initialError === 0n) {
         handleErrorMessage();
         break;
@@ -73,18 +115,18 @@ onmessage = async (e) => {
     }
 
     case "start":
-      running = true;
+      ctx.running = true;
       runLoop();
       break;
 
     case "stop":
-      running = false;
+      ctx.running = false;
       break;
 
     case "destroy":
-      running = false;
-      if (ctx) {
-        const destroyRes = exports.pale_destroy(ctx);
+      ctx.running = false;
+      if (ctx !== null) {
+        const destroyRes = WASM.exports.pale_destroy(ctx.ptr);
         if (destroyRes === 0) {
           handleErrorMessage();
           return;
@@ -97,23 +139,23 @@ onmessage = async (e) => {
 };
 
 function runLoop() {
-  if (!running || !ctx) return;
+  if (ctx === null || !ctx.running) return;
 
-  const fitness = exports.pale_run_step(ctx);
+  const fitness = WASM.exports.pale_run_steps(ctx.ptr, 1000);
   if (fitness === 0n) {
     handleErrorMessage();
     return;
   }
 
-  const ptr = exports.pale_get_best_image(ctx);
-  if (ptr === 0) {
+  const pixelsPtr = WASM.exports.pale_get_best_image(ctx.ptr);
+  if (pixelsPtr === 0) {
     handleErrorMessage();
     return;
   }
 
-  const len = width * height * 4;
-  const pixels = new Uint8Array(heap8.buffer, ptr, len).slice();
-  const iterations = exports.pale_get_iterations(ctx);
+  const len = ctx.width * ctx.height * 4;
+  const pixels = new Uint8Array(WASM.HEAP8.buffer, pixelsPtr, len).slice();
+  const iterations = WASM.exports.pale_get_iterations(ctx.ptr);
   if (iterations === 0) {
     handleErrorMessage();
     return;

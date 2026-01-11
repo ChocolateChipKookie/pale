@@ -57,22 +57,14 @@ const Context = struct {
     prng: std.Random.DefaultPrng,
     random: std.Random,
     iteration_count: u64,
-    target_fps: u32,
 
     fn init(
         alloc: std.mem.Allocator,
         width: i32,
         height: i32,
         capacity: u32,
-        target_fps: u32,
         seed: u64,
     ) !*Context {
-        // Validate data
-        if (target_fps == 0 or 60 < target_fps) {
-            report_error("Invalid FPS: {d} (valid range (0, 60]", .{target_fps});
-            return error.InvalidArgument;
-        }
-
         const ctx = alloc.create(Context) catch |e| {
             report_error("Failed to allocate context", .{});
             return e;
@@ -156,7 +148,6 @@ export fn pale_create(
     width: i32,
     height: i32,
     capacity: u32,
-    target_fps: u32,
     seed: u64,
 ) ?*Context {
     return Context.init(
@@ -164,7 +155,6 @@ export fn pale_create(
         width,
         height,
         capacity,
-        target_fps,
         seed,
     ) catch null;
 }
@@ -181,8 +171,8 @@ export fn pale_destroy(mb_context: ?*Context) bool {
     return true;
 }
 
-/// Run optimization step, rougly aiming to get the right number of iterations to satisfy the target FPS
-export fn pale_run_step(context: ?*Context) u64 {
+/// Run optimization steps
+export fn pale_run_steps(context: ?*Context, iterations: usize) u64 {
     const ctx = context orelse {
         report_error("Passed context is null", .{});
         return 0;
@@ -193,7 +183,7 @@ export fn pale_run_step(context: ?*Context) u64 {
         return 0;
     }
 
-    for (0..1000) |_| {
+    for (0..iterations) |_| {
         ctx.best_solution.cloneIntoAssumingCapacity(&ctx.test_solution);
         ctx.mutation.mutate(&ctx.test_solution);
         _ = ctx.test_solution.evalRegion(&ctx.target_canvas, ctx.best_solution, &ctx.best_canvas, &ctx.test_canvas) catch {

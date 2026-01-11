@@ -9,7 +9,6 @@ const iterationsEl = document.getElementById("iterations");
 const errorEl = document.getElementById("error");
 const statusEl = document.getElementById("status");
 const themeBtn = document.getElementById("themeBtn");
-const targetFPS = 30;
 
 // Theme handling
 function getSystemTheme() {
@@ -81,10 +80,10 @@ function createContext() {
   worker.postMessage({
     type: "create",
     data: {
-      imagePixels: sourceImageData.data,
-      imageWidth: width,
-      imageHeight: height,
-      targetFPS: targetFPS,
+      pixels: sourceImageData.data,
+      width: width,
+      height: height,
+      fps: 30,
       capacity: 1000,
       seed: Date.now(),
     },
