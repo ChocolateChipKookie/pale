@@ -4,7 +4,6 @@ class WasmModule {
   /** @param wasm {WebAssembly.WebAssemblyInstantiatedSource} */
   constructor(wasm) {
     this.exports = wasm.instance.exports;
-    this.#cachedMemoryBuffer = wasm.instance.exports.memory.buffer;
   }
 
   #cachedMemoryBuffer;
@@ -24,23 +23,26 @@ class WasmModule {
  * @returns {Promise<WasmModule>}
  */
 async function CreateWasmModule(location) {
+  const decoder = new TextDecoder();
   const module = await WebAssembly.instantiateStreaming(fetch(location), {
-    env: {},
+    env: {
+      jsLog: (level, ptr, len) => {
+        const methods = [
+          console.error,
+          console.warn,
+          console.info,
+          console.debug,
+        ];
+        const msg = decoder.decode(WASM.HEAP8.subarray(ptr, ptr + len));
+        (methods[level] ?? console.log)(msg);
+      },
+    },
   });
   return new WasmModule(module);
 }
 
 /** @type {?WasmModule} */
 let WASM = null;
-
-function handleErrorMessage() {
-  const len = WASM.exports.pale_get_error_len();
-  const ptr = WASM.exports.pale_get_error_ptr();
-  const message = new TextDecoder().decode(heap8.subarray(ptr, ptr + len));
-  WASM.exports.pale_clear_error();
-  postMessage({ type: "error", message });
-  running = false;
-}
 
 class Context {
   /** @type {number} */
