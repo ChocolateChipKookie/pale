@@ -1,19 +1,36 @@
+/**
+ * @typedef {Object} PaleExports
+ * @property {WebAssembly.Memory} memory
+ * @property {(width: number, height: number, capacity: number, seed: bigint) => number} pale_create
+ * @property {(ctx: number) => number} pale_destroy
+ * @property {(ctx: number) => number} pale_get_target_image
+ * @property {(ctx: number) => bigint} pale_evaluate_best_solution
+ * @property {(ctx: number, steps: number) => bigint} pale_run_steps
+ * @property {(ctx: number) => number} pale_get_best_image
+ * @property {(ctx: number) => number} pale_get_iterations
+ */
+
 class WasmModule {
+  /** @type {PaleExports} */
   exports;
 
   /** @param wasm {WebAssembly.WebAssemblyInstantiatedSource} */
   constructor(wasm) {
-    this.exports = wasm.instance.exports;
+    this.exports = /** @type {PaleExports} */ (wasm.instance.exports);
   }
 
+  /** @type {ArrayBuffer | undefined} */
   #cachedMemoryBuffer;
+  /** @type {Uint8Array | undefined} */
   #heapUint8Array;
 
   /** @returns {Uint8Array} */
   get HEAP8() {
     if (this.exports.memory.buffer !== this.#cachedMemoryBuffer) {
+      this.#cachedMemoryBuffer = this.exports.memory.buffer;
       this.#heapUint8Array = new Uint8Array(this.exports.memory.buffer);
     }
+    // @ts-expect-error heapUint8Array is guaranteed to be set after the above check
     return this.#heapUint8Array;
   }
 }
@@ -26,7 +43,12 @@ async function CreateWasmModule(location) {
   const decoder = new TextDecoder();
   const module = await WebAssembly.instantiateStreaming(fetch(location), {
     env: {
+      /** @param {number} level @param {number} ptr @param {number} len */
       jsLog: (level, ptr, len) => {
+        if (WASM === null) {
+          console.error("jsLog called but WASM is null");
+          return;
+        }
         const methods = [
           console.error,
           console.warn,
@@ -72,7 +94,7 @@ class Context {
 }
 
 /** @type {?Context} */
-let ctx = null;
+let paleCtx = null;
 
 onmessage = async (e) => {
   const { type, data } = e.data;
@@ -85,6 +107,10 @@ onmessage = async (e) => {
     }
 
     case "create": {
+      if (WASM === null) {
+        console.error("create called but WASM is null");
+        break;
+      }
       const ctxPtr = WASM.exports.pale_create(
         data.width,
         data.height,
@@ -93,22 +119,19 @@ onmessage = async (e) => {
       );
 
       if (ctxPtr === 0) {
-        handleErrorMessage();
         break;
       }
 
-      ctx = new Context(ctxPtr, data.width, data.height, data.fps);
+      paleCtx = new Context(ctxPtr, data.width, data.height, data.fps);
 
       const targetStart = WASM.exports.pale_get_target_image(ctxPtr);
       if (targetStart === 0) {
-        handleErrorMessage();
         break;
       }
       WASM.HEAP8.set(data.pixels, targetStart);
 
       const initialError = WASM.exports.pale_evaluate_best_solution(ctxPtr);
       if (initialError === 0n) {
-        handleErrorMessage();
         break;
       }
 
@@ -117,23 +140,25 @@ onmessage = async (e) => {
     }
 
     case "start":
-      ctx.running = true;
+      if (paleCtx === null) break;
+      paleCtx.running = true;
       runLoop();
       break;
 
     case "stop":
-      ctx.running = false;
+      if (paleCtx === null) break;
+      paleCtx.running = false;
       break;
 
     case "destroy":
-      ctx.running = false;
-      if (ctx !== null) {
-        const destroyRes = WASM.exports.pale_destroy(ctx.ptr);
+      if (paleCtx === null) break;
+      paleCtx.running = false;
+      if (WASM !== null) {
+        const destroyRes = WASM.exports.pale_destroy(paleCtx.ptr);
         if (destroyRes === 0) {
-          handleErrorMessage();
           return;
         }
-        ctx = null;
+        paleCtx = null;
       }
       postMessage({ type: "destroyed" });
       break;
@@ -141,25 +166,22 @@ onmessage = async (e) => {
 };
 
 function runLoop() {
-  if (ctx === null || !ctx.running) return;
+  if (paleCtx === null || WASM === null || !paleCtx.running) return;
 
-  const fitness = WASM.exports.pale_run_steps(ctx.ptr, 1000);
+  const fitness = WASM.exports.pale_run_steps(paleCtx.ptr, 1000);
   if (fitness === 0n) {
-    handleErrorMessage();
     return;
   }
 
-  const pixelsPtr = WASM.exports.pale_get_best_image(ctx.ptr);
+  const pixelsPtr = WASM.exports.pale_get_best_image(paleCtx.ptr);
   if (pixelsPtr === 0) {
-    handleErrorMessage();
     return;
   }
 
-  const len = ctx.width * ctx.height * 4;
+  const len = paleCtx.width * paleCtx.height * 4;
   const pixels = new Uint8Array(WASM.HEAP8.buffer, pixelsPtr, len).slice();
-  const iterations = WASM.exports.pale_get_iterations(ctx.ptr);
+  const iterations = WASM.exports.pale_get_iterations(paleCtx.ptr);
   if (iterations === 0) {
-    handleErrorMessage();
     return;
   }
 
