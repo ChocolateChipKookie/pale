@@ -1,14 +1,14 @@
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const startBtn = document.getElementById("startBtn");
-const stopBtn = document.getElementById("stopBtn");
-const resetBtn = document.getElementById("resetBtn");
-const downloadBtn = document.getElementById("downloadBtn");
-const imageInput = document.getElementById("imageInput");
-const iterationsEl = document.getElementById("iterations");
-const errorEl = document.getElementById("error");
-const statusEl = document.getElementById("status");
-const themeBtn = document.getElementById("themeBtn");
+const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
+const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
+const startBtn = /** @type {HTMLButtonElement} */ (document.getElementById("startBtn"));
+const stopBtn = /** @type {HTMLButtonElement} */ (document.getElementById("stopBtn"));
+const resetBtn = /** @type {HTMLButtonElement} */ (document.getElementById("resetBtn"));
+const downloadBtn = /** @type {HTMLButtonElement} */ (document.getElementById("downloadBtn"));
+const imageInput = /** @type {HTMLInputElement} */ (document.getElementById("imageInput"));
+const iterationsEl = /** @type {HTMLElement} */ (document.getElementById("iterations"));
+const errorEl = /** @type {HTMLElement} */ (document.getElementById("error"));
+const statusEl = /** @type {HTMLElement} */ (document.getElementById("status"));
+const themeBtn = /** @type {HTMLButtonElement} */ (document.getElementById("themeBtn"));
 
 // Theme handling
 function getSystemTheme() {
@@ -17,6 +17,7 @@ function getSystemTheme() {
     : "dark";
 }
 
+/** @param {string} theme */
 function applyTheme(theme) {
   document.body.dataset.theme = theme === "light" ? "light" : "";
   themeBtn.textContent = theme === "light" ? "🌙" : "☀️";
@@ -32,18 +33,22 @@ themeBtn.onclick = () => {
   localStorage.setItem("theme", newTheme);
 };
 
-let worker = null;
+const worker = new Worker("pale-worker.js");
 let width = 512;
 let height = 512;
+/** @type {Uint8Array | null} */
 let latestFrame = null;
+/** @type {ImageData | null} */
 let sourceImageData = null;
 let isRunning = false;
 let hasContext = false;
 
+/** @param {string} msg */
 function log(msg) {
   console.log(`[Pale] ${msg}`);
 }
 
+/** @param {string} s */
 function setStatus(s) {
   statusEl.textContent = s;
 }
@@ -91,7 +96,6 @@ function createContext() {
 }
 
 function initWorker() {
-  worker = new Worker("pale-worker.js");
   worker.postMessage({ type: "initialize" });
 
   worker.onmessage = (e) => {
@@ -183,8 +187,8 @@ resetBtn.onclick = () => {
   log("Reset");
 };
 
-imageInput.onchange = (e) => {
-  const file = e.target.files[0];
+imageInput.onchange = () => {
+  const file = imageInput.files?.[0];
   if (!file) return;
 
   const img = new Image();
@@ -217,6 +221,7 @@ imageInput.onchange = (e) => {
 
 downloadBtn.onclick = () => {
   canvas.toBlob((blob) => {
+    if (blob === null) return;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
