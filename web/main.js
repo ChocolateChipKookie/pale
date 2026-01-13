@@ -1,38 +1,19 @@
+// DOM elements
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
 const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
+
 const startBtn = /** @type {HTMLButtonElement} */ (document.getElementById("startBtn"));
 const stopBtn = /** @type {HTMLButtonElement} */ (document.getElementById("stopBtn"));
 const resetBtn = /** @type {HTMLButtonElement} */ (document.getElementById("resetBtn"));
 const downloadBtn = /** @type {HTMLButtonElement} */ (document.getElementById("downloadBtn"));
 const imageInput = /** @type {HTMLInputElement} */ (document.getElementById("imageInput"));
+
 const iterationsEl = /** @type {HTMLElement} */ (document.getElementById("iterations"));
 const errorEl = /** @type {HTMLElement} */ (document.getElementById("error"));
 const statusEl = /** @type {HTMLElement} */ (document.getElementById("status"));
 const themeBtn = /** @type {HTMLButtonElement} */ (document.getElementById("themeBtn"));
 
-// Theme handling
-function getSystemTheme() {
-  return window.matchMedia("(prefers-color-scheme: light)").matches
-    ? "light"
-    : "dark";
-}
-
-/** @param {string} theme */
-function applyTheme(theme) {
-  document.body.dataset.theme = theme === "light" ? "light" : "";
-  themeBtn.textContent = theme === "light" ? "🌙" : "☀️";
-}
-
-const savedTheme = localStorage.getItem("theme");
-applyTheme(savedTheme || getSystemTheme());
-
-themeBtn.onclick = () => {
-  const isLight = document.body.dataset.theme === "light";
-  const newTheme = isLight ? "dark" : "light";
-  applyTheme(newTheme);
-  localStorage.setItem("theme", newTheme);
-};
-
+// State
 const worker = new Worker("pale-worker.js");
 let width = 512;
 let height = 512;
@@ -43,14 +24,16 @@ let sourceImageData = null;
 let isRunning = false;
 let hasContext = false;
 
-/** @param {string} msg */
-function log(msg) {
-  console.log(`[Pale] ${msg}`);
-}
-
+// UI helpers
 /** @param {string} s */
 function setStatus(s) {
   statusEl.textContent = s;
+}
+
+function resetUI() {
+  iterationsEl.textContent = "0";
+  errorEl.textContent = "-";
+  startBtn.textContent = "Start";
 }
 
 function updateButtons() {
@@ -61,6 +44,7 @@ function updateButtons() {
   downloadBtn.disabled = !sourceImageData;
 }
 
+// Rendering
 function drawTestPattern() {
   const imageData = ctx.createImageData(width, height);
   for (let y = 0; y < height; y++) {
@@ -76,18 +60,26 @@ function drawTestPattern() {
   sourceImageData = imageData;
 }
 
-function createContext() {
-  if (!sourceImageData) {
-    log("No image loaded");
-    return;
-  }
+function render() {
+  if (!latestFrame) return;
+  const imageData = new ImageData(
+    new Uint8ClampedArray(latestFrame),
+    width,
+    height,
+  );
+  ctx.putImageData(imageData, 0, 0);
+  latestFrame = null;
+}
 
+// Worker communication
+function createContext() {
+  if (!sourceImageData) return;
   worker.postMessage({
     type: "create",
     data: {
       pixels: sourceImageData.data,
-      width: width,
-      height: height,
+      width,
+      height,
       fps: 30,
       capacity: 1000,
       seed: Date.now(),
@@ -95,73 +87,49 @@ function createContext() {
   });
 }
 
-function initWorker() {
-  worker.postMessage({ type: "initialize" });
-
-  worker.onmessage = (e) => {
-    const { type, pixels, fitness, iterations, message } = e.data;
-
-    switch (type) {
-      case "ready":
-        log("Worker ready");
-        setStatus("Ready");
-        createContext();
-        break;
-
-      case "created":
-        log("Context created");
-        hasContext = true;
-        setStatus("Ready to start");
-        updateButtons();
-        break;
-
-      case "frame":
-        latestFrame = pixels;
-        iterationsEl.textContent = iterations.toLocaleString();
-        errorEl.textContent = fitness.toLocaleString();
-        break;
-
-      case "destroyed":
-        log("Context destroyed");
-        hasContext = false;
-        updateButtons();
-        break;
-
-      case "error":
-        log(`WASM error: ${message}`);
-        setStatus("WASM error");
-        isRunning = false;
-        updateButtons();
-        break;
-    }
-  };
-
-  worker.onerror = (e) => {
-    log(`Worker error: ${e.message}`);
-    setStatus("Worker error");
-  };
-}
-
-function render() {
-  if (latestFrame) {
-    const imageData = new ImageData(
-      new Uint8ClampedArray(latestFrame),
-      width,
-      height,
-    );
-    ctx.putImageData(imageData, 0, 0);
-    latestFrame = null;
+worker.onmessage = (/** @type {MessageEvent} */ e) => {
+  const { type, pixels, fitness, iterations, message } = e.data;
+  switch (type) {
+    case "ready":
+      setStatus("Ready");
+      createContext();
+      break;
+    case "created":
+      hasContext = true;
+      setStatus("Ready to start");
+      updateButtons();
+      break;
+    case "frame":
+      latestFrame = pixels;
+      iterationsEl.textContent = iterations.toLocaleString();
+      errorEl.textContent = fitness.toLocaleString();
+      requestAnimationFrame(render);
+      break;
+    case "destroyed":
+      hasContext = false;
+      updateButtons();
+      break;
+    case "error":
+      console.error(`WASM error: ${message}`);
+      setStatus("WASM error");
+      isRunning = false;
+      updateButtons();
+      break;
   }
-  requestAnimationFrame(render);
-}
+};
 
+worker.onerror = (/** @type {ErrorEvent} */ e) => {
+  console.error(`Worker error: ${e.message}`);
+  setStatus("Worker error");
+};
+
+// Event handlers
 startBtn.onclick = () => {
   if (!hasContext) return;
   isRunning = true;
   setStatus("Running");
   updateButtons();
   worker.postMessage({ type: "start" });
-  log("Started");
 };
 
 stopBtn.onclick = () => {
@@ -170,21 +138,15 @@ stopBtn.onclick = () => {
   updateButtons();
   startBtn.textContent = "Continue";
   worker.postMessage({ type: "stop" });
-  log("Paused");
 };
 
 resetBtn.onclick = () => {
-  iterationsEl.textContent = "0";
-  errorEl.textContent = "-";
-  startBtn.textContent = "Start";
-
+  resetUI();
   if (sourceImageData) {
     ctx.putImageData(sourceImageData, 0, 0);
     createContext();
   }
-
   setStatus("Reset");
-  log("Reset");
 };
 
 imageInput.onchange = () => {
@@ -208,12 +170,7 @@ imageInput.onchange = () => {
 
     ctx.drawImage(img, 0, 0, width, height);
     sourceImageData = ctx.getImageData(0, 0, width, height);
-
-    iterationsEl.textContent = "0";
-    errorEl.textContent = "-";
-    startBtn.textContent = "Start";
-
-    log(`Loaded image: ${width}x${height}`);
+    resetUI();
     createContext();
   };
   img.src = URL.createObjectURL(file);
@@ -231,7 +188,27 @@ downloadBtn.onclick = () => {
   });
 };
 
-log("Initializing...");
-initWorker();
+// Theme
+function getSystemTheme() {
+  return window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
+}
+
+/** @param {string} theme */
+function applyTheme(theme) {
+  document.body.dataset.theme = theme === "light" ? "light" : "";
+  themeBtn.textContent = theme === "light" ? "🌙" : "☀️";
+}
+
+themeBtn.onclick = () => {
+  const isLight = document.body.dataset.theme === "light";
+  const newTheme = isLight ? "dark" : "light";
+  applyTheme(newTheme);
+  localStorage.setItem("theme", newTheme);
+};
+
+// Init
+applyTheme(localStorage.getItem("theme") || getSystemTheme());
 drawTestPattern();
-requestAnimationFrame(render);
+worker.postMessage({ type: "initialize" });
