@@ -24,8 +24,6 @@ pub const std_options: std.Options = .{
     }.log,
 };
 
-const allocator = std.heap.wasm_allocator;
-
 /// Global state for the optimization context
 const Context = struct {
     target_canvas: Canvas,
@@ -121,10 +119,16 @@ const Context = struct {
     }
 };
 
+/// Returns default allocator for build
+export fn pale_get_allocator() *const std.mem.Allocator {
+    return &std.heap.wasm_allocator;
+}
+
 /// Creates a new optimization context.
 /// Takes raw RGBA pixel data from JavaScript (data is copied).
 /// Returns null on success, or an error message string on failure.
 export fn pale_create(
+    alloc: *const std.mem.Allocator,
     width: i32,
     height: i32,
     capacity: u32,
@@ -132,7 +136,7 @@ export fn pale_create(
 ) ?*Context {
     std.log.err("All good my friends", .{});
     return Context.init(
-        allocator,
+        alloc.*,
         width,
         height,
         capacity,
@@ -141,14 +145,14 @@ export fn pale_create(
 }
 
 /// Destroys the optimization context and frees all resources.
-export fn pale_destroy(mb_context: ?*Context) bool {
+export fn pale_destroy(alloc: *const std.mem.Allocator, mb_context: ?*Context) bool {
     const context = mb_context orelse {
         std.log.err("Passed context is null", .{});
         return false;
     };
 
-    context.deinit(allocator);
-    allocator.destroy(context);
+    context.deinit(alloc.*);
+    alloc.destroy(context);
     return true;
 }
 

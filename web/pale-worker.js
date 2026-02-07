@@ -1,8 +1,9 @@
 /**
  * @typedef {Object} PaleExports
  * @property {WebAssembly.Memory} memory
- * @property {(width: number, height: number, capacity: number, seed: bigint) => number} pale_create
- * @property {(ctx: number) => number} pale_destroy
+ * @property {() => number} pale_get_allocator
+ * @property {(alloc: number, width: number, height: number, capacity: number, seed: bigint) => number} pale_create
+ * @property {(alloc: number, ctx: number) => number} pale_destroy
  * @property {(ctx: number) => number} pale_get_target_image
  * @property {(ctx: number) => bigint} pale_evaluate_best_solution
  * @property {(ctx: number, steps: number) => bigint} pale_run_steps
@@ -36,6 +37,7 @@ class WasmModule {
 }
 
 class Context {
+  allocatorPtr;
   ptr;
   width;
   height;
@@ -43,13 +45,15 @@ class Context {
   running = false;
 
   /**
-   * @param {number} ptr
+   * @param {number} allocatorPtr
+   * @param {number} contextPtr
    * @param {number} width
    * @param {number} height
    * @param {number} fps
    */
-  constructor(ptr, width, height, fps) {
-    this.ptr = ptr;
+  constructor(allocatorPtr, contextPtr, width, height, fps) {
+    this.allocatorPtr = allocatorPtr;
+    this.ptr = contextPtr;
     this.width = width;
     this.height = height;
     this.fps = fps;
@@ -74,7 +78,12 @@ async function createWasmModule(location) {
           console.error("jsLog called but WASM is null");
           return;
         }
-        const methods = [console.error, console.warn, console.info, console.debug];
+        const methods = [
+          console.error,
+          console.warn,
+          console.info,
+          console.debug,
+        ];
         const msg = decoder.decode(WASM.HEAP8.subarray(ptr, ptr + len));
         (methods[level] ?? console.log)(msg);
       },
@@ -125,7 +134,11 @@ onmessage = async (e) => {
         postMessage({ type: "error", message: "WASM not initialized" });
         break;
       }
+
+      const allocatorPtr = WASM.exports.pale_get_allocator();
+
       const ctxPtr = WASM.exports.pale_create(
+        allocatorPtr,
         data.width,
         data.height,
         data.capacity,
@@ -136,7 +149,13 @@ onmessage = async (e) => {
         break;
       }
 
-      paleCtx = new Context(ctxPtr, data.width, data.height, data.fps);
+      paleCtx = new Context(
+        allocatorPtr,
+        ctxPtr,
+        data.width,
+        data.height,
+        data.fps,
+      );
 
       const targetStart = WASM.exports.pale_get_target_image(ctxPtr);
       if (targetStart === 0) {
@@ -147,7 +166,10 @@ onmessage = async (e) => {
 
       const initialError = WASM.exports.pale_evaluate_best_solution(ctxPtr);
       if (initialError === 0n) {
-        postMessage({ type: "error", message: "pale_evaluate_best_solution failed" });
+        postMessage({
+          type: "error",
+          message: "pale_evaluate_best_solution failed",
+        });
         break;
       }
 
@@ -170,7 +192,10 @@ onmessage = async (e) => {
       if (paleCtx === null) break;
       paleCtx.running = false;
       if (WASM !== null) {
-        const destroyRes = WASM.exports.pale_destroy(paleCtx.ptr);
+        const destroyRes = WASM.exports.pale_destroy(
+          paleCtx.allocatorPtr,
+          paleCtx.ptr,
+        );
         if (destroyRes === 0) {
           postMessage({ type: "error", message: "pale_destroy failed" });
           return;

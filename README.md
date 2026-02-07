@@ -35,14 +35,12 @@ Simple way to take a  look is running a local file server from that directory (`
  [x] Move the wasm running to a worker
  [x] Remove raylib dependency for the wasm build (replace the image class with something self rolled)
  [x] Remove emscripten dependency (hopefully making the resulting bundle smaller)
- [ ] Restructure wasm exports
+ [x] Restructure wasm exports
  [ ] Add blog post (also check if the 14kb website is actually faster to load)
- [ ] Add runtime support for loading fast/small binary
- [ ] Make a separate target for the web build, and enable compiling it with different sanitizers
- [ ] Check how to write to console from freestanding build
- [ ] Check if it is possible to autogenerate signatures/jsdoc for the exported emscripten functions
+ [ ] Make separate native target for testing the `wasm_exports.zig`, mostly for running sanitizers
+ [x] Check how to write to console from freestanding build
  [ ] Make adaptive number of iterations to keep FPS
- [ ] Expose allocator to JS
+ [x] Expose allocator to JS
 
 ## Progress
 
