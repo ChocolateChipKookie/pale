@@ -16,18 +16,19 @@ To build and run the app (skip the `run` if you just want to build it):
 zig build run
 ```
 
-I suggest running it with `-Doptimize=ReleaseFast` to get the maximum juice out of it.
+The default optimization is `ReleaseFast`. Override with `--release=<mode>` if needed.
 
 ### Web
 
 Currently still under construction, but works. Will be the main way to use the app once finished.
 
 ```
-zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
+zig build wasm
 ```
 
-The compiled `.wasm` together with the necessary `index.html` will be output in the `zig-out/web` directory.
-Simple way to take a  look is running a local file server from that directory (`python -m http.server`).
+The compiled `.wasm` together with the necessary web files will be output in the `zig-out/web` directory.
+Simple way to take a look is running a local file server from that directory (`python -m http.server`).
+The optimization level is shared with the native build (default `ReleaseFast`). Override with `--release=<mode>` if needed.
 
 #### TODO
 
