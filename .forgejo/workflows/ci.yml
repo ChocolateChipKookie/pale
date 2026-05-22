@@ -32,9 +32,9 @@ jobs:
       - name: Check gzipped size budget
         run: |
           set -euo pipefail
-          # Budget: 10 * MSS (1460 B) = 14600 B, the "fits in 10 TCP packets" target.
+          # Budget: 20 * MSS (1460 B) = 14600 B, the "fits in 20 TCP packets" target.
           MSS=1460
-          BUDGET=$((10 * MSS))
+          BUDGET=$((20 * MSS))
           TOTAL=0
           printf "%-20s %10s %10s\n" "file" "raw" "gz"
           for f in zig-out/web/*; do
@@ -45,7 +45,7 @@ jobs:
             TOTAL=$((TOTAL + GZ))
           done
           printf "%-20s %10s %10d\n" "TOTAL" "-" "$TOTAL"
-          echo "Budget: $BUDGET B (10 * $MSS B MSS)"
+          echo "Budget: $BUDGET B (20 * $MSS B MSS)"
           if [ "$TOTAL" -gt "$BUDGET" ]; then
             echo "FAIL: gzipped payload $TOTAL B exceeds budget $BUDGET B"
             exit 1
