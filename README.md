@@ -16,7 +16,7 @@ To build and run the app (skip the `run` if you just want to build it):
 zig build run
 ```
 
-The default optimization is `ReleaseFast`. Override with `--release=<mode>` if needed.
+The default optimization is `Debug`. Pass `--release=fast` (recommended for native) or `--release=safe` / `--release=small` for a release build.
 
 ### Web
 
@@ -28,7 +28,11 @@ zig build wasm
 
 The compiled `.wasm` together with the necessary web files will be output in the `zig-out/web` directory.
 Simple way to take a look is running a local file server from that directory (`python -m http.server`).
-The optimization level is shared with the native build (default `ReleaseFast`). Override with `--release=<mode>` if needed.
+The optimization level is shared with the native build and defaults to `Debug`. For a tiny `.wasm` (~12 KB) use `--release=small`:
+
+```
+zig build wasm --release=small
+```
 
 #### TODO
 
