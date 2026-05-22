@@ -48,5 +48,6 @@ jobs:
           echo "Budget: $BUDGET B (10 * $MSS B MSS)"
           if [ "$TOTAL" -gt "$BUDGET" ]; then
             echo "FAIL: gzipped payload $TOTAL B exceeds budget $BUDGET B"
+            exit 1
           fi
           echo "OK: $((BUDGET - TOTAL)) B headroom"
