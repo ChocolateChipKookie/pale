@@ -11,6 +11,13 @@ jobs:
     steps:
       - uses: ${{ secrets.ACTIONS_URL }}/checkout@main
 
+      - name: Install raylib system deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            libgl1-mesa-dev libx11-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libxcursor-dev
+
       - name: Build native (release)
         run: zig build --release=fast
 
