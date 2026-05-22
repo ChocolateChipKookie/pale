@@ -31,11 +31,12 @@ pub fn build(b: *std.Build) void {
     exe_mod.addImport("raylib", raylib);
     exe_mod.addImport("raygui", raygui);
 
+    exe_mod.linkLibrary(raylib_artifact);
+
     const exe = b.addExecutable(.{
         .name = "pale",
         .root_module = exe_mod,
     });
-    exe.linkLibrary(raylib_artifact);
 
     b.installArtifact(exe);
 

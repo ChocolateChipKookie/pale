@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-native:
+    runs-on: zig
+    steps:
+      - uses: ${{ secrets.ACTIONS_URL }}/checkout@main
+
+      - name: Install raylib system deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            libgl1-mesa-dev libx11-dev libxrandr-dev \
+            libxinerama-dev libxi-dev libxcursor-dev
+
+      - name: Build native (release)
+        run: zig build --release=fast
+
+  build-wasm:
+    runs-on: zig
+    steps:
+      - uses: ${{ secrets.ACTIONS_URL }}/checkout@main
+
+      - name: Build wasm (release-small)
+        run: zig build wasm --release=small
+
+      - name: Check gzipped size budget
+        run: |
+          set -euo pipefail
+          # Budget: 10 * MSS (1460 B) = 14600 B, the "fits in 10 TCP packets" target.
+          MSS=1460
+          BUDGET=$((10 * MSS))
+          TOTAL=0
+          printf "%-20s %10s %10s\n" "file" "raw" "gz"
+          for f in zig-out/web/*; do
+            [ -f "$f" ] || continue
+            RAW=$(stat -c%s "$f")
+            GZ=$(gzip -c -9 "$f" | wc -c)
+            printf "%-20s %10d %10d\n" "$(basename "$f")" "$RAW" "$GZ"
+            TOTAL=$((TOTAL + GZ))
+          done
+          printf "%-20s %10s %10d\n" "TOTAL" "-" "$TOTAL"
+          echo "Budget: $BUDGET B (10 * $MSS B MSS)"
+          if [ "$TOTAL" -gt "$BUDGET" ]; then
+            echo "FAIL: gzipped payload $TOTAL B exceeds budget $BUDGET B"
+          fi
+          echo "OK: $((BUDGET - TOTAL)) B headroom"
