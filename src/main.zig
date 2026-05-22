@@ -13,6 +13,10 @@ const RuntimeError = error{
     WrongDimension,
 };
 
+fn microsNow(io: std.Io) i64 {
+    return @truncate(@divTrunc(std.Io.Clock.awake.now(io).nanoseconds, std.time.ns_per_us));
+}
+
 fn imageToCanvas(alloc: std.mem.Allocator, image: rl.Image) !Canvas {
     if (image.format != rl.PixelFormat.uncompressed_r8g8b8a8) {
         return RuntimeError.InvalidFormat;
@@ -28,9 +32,13 @@ fn imageToCanvas(alloc: std.mem.Allocator, image: rl.Image) !Canvas {
 }
 
 pub fn main() anyerror!void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
+
+    var io_state: std.Io.Threaded = .init_single_threaded;
+    defer io_state.deinit();
+    const io = io_state.io();
 
     // Set up images and canvases
     var target_image = try rl.Image.init("earring.png");
@@ -58,11 +66,7 @@ pub fn main() anyerror!void {
     defer texture.unload();
 
     // Set up the hill climbing algorithm
-    var prng = std.Random.DefaultPrng.init(blk: {
-        var seed: u64 = undefined;
-        try std.posix.getrandom(std.mem.asBytes(&seed));
-        break :blk seed;
-    });
+    var prng = std.Random.DefaultPrng.init(@bitCast(microsNow(io)));
     const rng = prng.random();
 
     var best_solution = Solution.init(alloc, 1000, target_canvas.width, target_canvas.height) catch |err| {
@@ -81,23 +85,23 @@ pub fn main() anyerror!void {
     var counter: i32 = 0;
 
     var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
-    const start = std.time.microTimestamp();
+    const start = microsNow(io);
     const total_time = 60 * std.time.us_per_s;
 
     const target_fps = 30;
     const target_frame_duration_micro = std.time.us_per_s / target_fps;
 
     while (!rl.windowShouldClose()) {
-        const frame_start = std.time.microTimestamp();
+        const frame_start = microsNow(io);
         if (frame_start - start > total_time) {
             break;
         }
 
         // Update
-        while (frame_start + target_frame_duration_micro > std.time.microTimestamp()) {
+        while (frame_start + target_frame_duration_micro > microsNow(io)) {
             counter += 1;
             best_solution.cloneIntoAssumingCapacity(&test_solution);
             mutation.mutate(&test_solution);
@@ -143,7 +147,7 @@ pub fn main() anyerror!void {
     const fitness_evaluated = best_solution.fitness.evaluated.pixelError;
     std.log.info("Actual: {}, Partial: {}, Matching: {}", .{ fitness_evaluated, fitness_accumulated, fitness_accumulated == fitness_evaluated });
 
-    const end = std.time.microTimestamp();
+    const end = microsNow(io);
     const totalSeconds = @as(f64, @floatFromInt(end - start)) / 1_000_000.0;
     try stdout.print("Iterations: {}\n", .{counter});
     try stdout.print("Seconds: {}\n", .{totalSeconds});
