@@ -36,12 +36,19 @@ class WasmModule {
   }
 }
 
+const INITIAL_BATCH_SIZE = 1000;
+const MIN_BATCH_SIZE = 1;
+const MAX_BATCH_SIZE = 10_000;
+const BATCH_DAMPING = 0.5;
+
 class Context {
   allocatorPtr;
   ptr;
   width;
   height;
   fps;
+  targetMs;
+  batchSize = INITIAL_BATCH_SIZE;
   running = false;
 
   /**
@@ -57,6 +64,7 @@ class Context {
     this.width = width;
     this.height = height;
     this.fps = fps;
+    this.targetMs = 1000 / fps;
   }
 }
 
@@ -95,7 +103,17 @@ async function createWasmModule(location) {
 function runLoop() {
   if (paleCtx === null || WASM === null || !paleCtx.running) return;
 
-  const fitness = WASM.exports.pale_run_steps(paleCtx.ptr, 1000);
+  const batchStart = performance.now();
+  const fitness = WASM.exports.pale_run_steps(paleCtx.ptr, paleCtx.batchSize);
+  const elapsed = performance.now() - batchStart;
+  if (elapsed > 0) {
+    const ratio = paleCtx.targetMs / elapsed;
+    const next = paleCtx.batchSize * (1 + (ratio - 1) * BATCH_DAMPING);
+    paleCtx.batchSize = Math.max(
+      MIN_BATCH_SIZE,
+      Math.min(MAX_BATCH_SIZE, Math.round(next)),
+    );
+  }
   if (fitness === 0n) {
     postMessage({ type: "error", message: "pale_run_steps failed" });
     return;
