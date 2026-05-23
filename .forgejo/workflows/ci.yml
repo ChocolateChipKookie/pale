@@ -21,6 +21,14 @@ jobs:
       - name: Build native (release)
         run: zig build --release=fast
 
+  wasm-exports-test:
+    runs-on: zig
+    steps:
+      - uses: ${{ secrets.ACTIONS_URL }}/checkout@main
+
+      - name: Smoke-test wasm exports natively
+        run: zig build wasm-exports-test
+
   build-wasm:
     runs-on: zig
     steps:

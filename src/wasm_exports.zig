@@ -116,25 +116,25 @@ const Context = struct {
         self.best_canvas.deinit(alloc);
         self.test_canvas.deinit(alloc);
         self.best_solution.deinit(alloc);
+        self.test_solution.deinit(alloc);
     }
 };
 
 /// Returns default allocator for build
-export fn pale_get_allocator() *const std.mem.Allocator {
+pub export fn pale_get_allocator() *const std.mem.Allocator {
     return &std.heap.wasm_allocator;
 }
 
 /// Creates a new optimization context.
 /// Takes raw RGBA pixel data from JavaScript (data is copied).
 /// Returns null on success, or an error message string on failure.
-export fn pale_create(
+pub export fn pale_create(
     alloc: *const std.mem.Allocator,
     width: i32,
     height: i32,
     capacity: u32,
     seed: u64,
 ) ?*Context {
-    std.log.err("All good my friends", .{});
     return Context.init(
         alloc.*,
         width,
@@ -145,9 +145,9 @@ export fn pale_create(
 }
 
 /// Destroys the optimization context and frees all resources.
-export fn pale_destroy(alloc: *const std.mem.Allocator, mb_context: ?*Context) bool {
+pub export fn pale_destroy(alloc: *const std.mem.Allocator, mb_context: ?*Context) bool {
     const context = mb_context orelse {
-        std.log.err("Passed context is null", .{});
+        std.log.warn("Passed context is null", .{});
         return false;
     };
 
@@ -157,9 +157,9 @@ export fn pale_destroy(alloc: *const std.mem.Allocator, mb_context: ?*Context) b
 }
 
 /// Run optimization steps
-export fn pale_run_steps(context: ?*Context, iterations: usize) u64 {
+pub export fn pale_run_steps(context: ?*Context, iterations: usize) u64 {
     const ctx = context orelse {
-        std.log.err("Passed context is null", .{});
+        std.log.warn("Passed context is null", .{});
         return 0;
     };
 
@@ -186,9 +186,9 @@ export fn pale_run_steps(context: ?*Context, iterations: usize) u64 {
 }
 
 /// Get target location
-export fn pale_get_target_image(context: ?*Context) ?[*]const u8 {
+pub export fn pale_get_target_image(context: ?*Context) ?[*]const u8 {
     const ctx = context orelse {
-        std.log.err("Passed context is null", .{});
+        std.log.warn("Passed context is null", .{});
         return null;
     };
 
@@ -196,9 +196,9 @@ export fn pale_get_target_image(context: ?*Context) ?[*]const u8 {
 }
 
 /// Evaluate best solution
-export fn pale_evaluate_best_solution(context: ?*Context) u64 {
+pub export fn pale_evaluate_best_solution(context: ?*Context) u64 {
     const ctx = context orelse {
-        std.log.err("Passed context is null", .{});
+        std.log.warn("Passed context is null", .{});
         return 0;
     };
 
@@ -211,9 +211,9 @@ export fn pale_evaluate_best_solution(context: ?*Context) u64 {
 }
 
 /// Get image
-export fn pale_get_best_image(context: ?*Context) ?[*]const u8 {
+pub export fn pale_get_best_image(context: ?*Context) ?[*]const u8 {
     const ctx = context orelse {
-        std.log.err("Passed context is null", .{});
+        std.log.warn("Passed context is null", .{});
         return null;
     };
 
@@ -221,9 +221,9 @@ export fn pale_get_best_image(context: ?*Context) ?[*]const u8 {
 }
 
 /// Get total iterations
-export fn pale_get_iterations(context: ?*Context) u64 {
+pub export fn pale_get_iterations(context: ?*Context) u64 {
     const ctx = context orelse {
-        std.log.err("Passed context is null", .{});
+        std.log.warn("Passed context is null", .{});
         return 0;
     };
 
