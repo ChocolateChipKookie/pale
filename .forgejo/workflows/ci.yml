@@ -21,6 +21,9 @@ jobs:
       - name: Build native (release)
         run: zig build --release=fast
 
+      - name: Run native tests
+        run: zig build test
+
   wasm-exports-test:
     runs-on: zig
     steps:
