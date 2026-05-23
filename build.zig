@@ -106,4 +106,21 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&b.addRunArtifact(mod_tests).step);
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
+
+    const wasm_exports_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/wasm_exports_test.zig"),
+        .target = target,
+        .optimize = .Debug,
+        .single_threaded = true,
+        .imports = &.{
+            .{ .name = "pale", .module = mod },
+        },
+    });
+
+    const wasm_exports_test = b.addTest(.{
+        .root_module = wasm_exports_test_mod,
+    });
+
+    const wasm_exports_test_step = b.step("wasm-exports-test", "Native Debug smoke-test of wasm exports");
+    wasm_exports_test_step.dependOn(&b.addRunArtifact(wasm_exports_test).step);
 }

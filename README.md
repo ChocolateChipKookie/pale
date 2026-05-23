@@ -28,11 +28,20 @@ zig build wasm
 
 The compiled `.wasm` together with the necessary web files will be output in the `zig-out/web` directory.
 Simple way to take a look is running a local file server from that directory (`python -m http.server`).
-The optimization level is shared with the native build and defaults to `Debug`. For a tiny `.wasm` (~12 KB) use `--release=small`:
+The optimization level is shared with the native build and defaults to `Debug`. For a small `.wasm` use `--release=small`:
 
 ```
 zig build wasm --release=small
 ```
+
+### Tests
+
+```
+zig build test                  # unit tests for the shared library + native exe
+zig build wasm-exports-test     # native Debug smoke-test of the wasm export surface
+```
+
+`wasm-exports-test` builds `wasm_exports.zig` for the host (forced to `Debug`, `single_threaded`) and exercises every exported function through `std.testing.allocator`, so leaks, double-frees, and out-of-bounds access surface immediately.
 
 #### TODO
 
@@ -42,7 +51,7 @@ zig build wasm --release=small
  [x] Remove emscripten dependency (hopefully making the resulting bundle smaller)
  [x] Restructure wasm exports
  [ ] Add blog post (also check if the 14kb website is actually faster to load)
- [ ] Make separate native target for testing the `wasm_exports.zig`, mostly for running sanitizers
+ [x] Make separate native target for testing the `wasm_exports.zig`, mostly for running sanitizers
  [x] Check how to write to console from freestanding build
  [ ] Make adaptive number of iterations to keep FPS
  [x] Expose allocator to JS
