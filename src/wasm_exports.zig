@@ -108,6 +108,7 @@ const Context = struct {
 
         // Mutations
         ctx.mutation = CombinedMutation.init(&ctx.random, width, height);
+        ctx.iteration_count = 0;
         return ctx;
     }
 
@@ -126,8 +127,7 @@ pub export fn pale_get_allocator() *const std.mem.Allocator {
 }
 
 /// Creates a new optimization context.
-/// Takes raw RGBA pixel data from JavaScript (data is copied).
-/// Returns null on success, or an error message string on failure.
+/// Returns a pointer to the context on success, or null on failure.
 pub export fn pale_create(
     alloc: *const std.mem.Allocator,
     width: i32,
@@ -226,11 +226,6 @@ pub export fn pale_get_iterations(context: ?*Context) u64 {
         std.log.warn("Passed context is null", .{});
         return 0;
     };
-
-    if (ctx.iteration_count == 0) {
-        std.log.err("The program has not been run yet", .{});
-        return 0;
-    }
 
     return ctx.iteration_count;
 }

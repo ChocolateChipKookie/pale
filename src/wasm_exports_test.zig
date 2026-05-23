@@ -14,7 +14,7 @@ test "full export cycle on a small canvas" {
     _ = exports.pale_run_steps(ctx, 16);
     _ = exports.pale_evaluate_best_solution(ctx);
 
-    try std.testing.expect(exports.pale_get_iterations(ctx) > 0);
+    try std.testing.expectEqual(@as(u64, 16), exports.pale_get_iterations(ctx));
 }
 
 test "null-context handling" {
@@ -31,4 +31,20 @@ test "null-context handling" {
 test "pale_get_allocator returns a non-null pointer" {
     const ptr = exports.pale_get_allocator();
     try std.testing.expect(@intFromPtr(ptr) != 0);
+}
+
+test "iteration counter resets across context lifecycles" {
+    const alloc = std.testing.allocator;
+
+    const first = exports.pale_create(&alloc, 32, 32, 100, 1) orelse
+        return error.PaleCreateFailed;
+    _ = exports.pale_run_steps(first, 16);
+    try std.testing.expectEqual(@as(u64, 16), exports.pale_get_iterations(first));
+    std.debug.assert(exports.pale_destroy(&alloc, first));
+
+    const second = exports.pale_create(&alloc, 32, 32, 100, 2) orelse
+        return error.PaleCreateFailed;
+    defer std.debug.assert(exports.pale_destroy(&alloc, second));
+    _ = exports.pale_run_steps(second, 4);
+    try std.testing.expectEqual(@as(u64, 4), exports.pale_get_iterations(second));
 }
