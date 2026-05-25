@@ -7,6 +7,7 @@ const stopBtn = /** @type {HTMLButtonElement} */ (document.getElementById("stopB
 const resetBtn = /** @type {HTMLButtonElement} */ (document.getElementById("resetBtn"));
 const downloadBtn = /** @type {HTMLButtonElement} */ (document.getElementById("downloadBtn"));
 const imageInput = /** @type {HTMLInputElement} */ (document.getElementById("imageInput"));
+const alphaInput = /** @type {HTMLInputElement} */ (document.getElementById("alphaInput"));
 
 const iterationsEl = /** @type {HTMLElement} */ (document.getElementById("iterations"));
 const errorEl = /** @type {HTMLElement} */ (document.getElementById("error"));
@@ -36,12 +37,34 @@ function resetUI() {
   startBtn.textContent = "Start";
 }
 
+/**
+ * @param {HTMLElement} el
+ * @param {boolean} disabled
+ * @param {string} hint
+ */
+function setDisabled(el, disabled, hint) {
+  if ("disabled" in el) {
+    /** @type {HTMLButtonElement | HTMLInputElement} */ (el).disabled = disabled;
+  }
+  if (disabled) el.title = hint;
+  else el.removeAttribute("title");
+}
+
 function updateButtons() {
-  startBtn.disabled = !hasContext || isRunning;
-  stopBtn.disabled = !isRunning;
-  resetBtn.disabled = isRunning || !sourceImageData;
-  imageInput.disabled = isRunning;
-  downloadBtn.disabled = !sourceImageData;
+  setDisabled(
+    startBtn,
+    !sourceImageData || isRunning,
+    !sourceImageData ? "Load an image first" : "Already running",
+  );
+  setDisabled(stopBtn, !isRunning, "Not running");
+  setDisabled(
+    resetBtn,
+    isRunning || !hasContext,
+    isRunning ? "Stop first" : "No active session — press Start",
+  );
+  setDisabled(imageInput, isRunning, "Stop first");
+  setDisabled(alphaInput, hasContext, "Press Reset to change");
+  setDisabled(downloadBtn, !sourceImageData, "Load an image first");
 }
 
 // Rendering
@@ -83,6 +106,7 @@ function createContext() {
       fps: 30,
       capacity: 1000,
       seed: Date.now(),
+      enableAlpha: alphaInput.checked,
     },
   });
 }
@@ -92,12 +116,14 @@ worker.onmessage = (/** @type {MessageEvent} */ e) => {
   switch (type) {
     case "ready":
       setStatus("Ready");
-      createContext();
+      updateButtons();
       break;
     case "created":
       hasContext = true;
-      setStatus("Ready to start");
+      isRunning = true;
+      setStatus("Running");
       updateButtons();
+      worker.postMessage({ type: "start" });
       break;
     case "frame":
       latestFrame = pixels;
@@ -125,7 +151,11 @@ worker.onerror = (/** @type {ErrorEvent} */ e) => {
 
 // Event handlers
 startBtn.onclick = () => {
-  if (!hasContext) return;
+  if (!sourceImageData) return;
+  if (!hasContext) {
+    createContext();
+    return;
+  }
   isRunning = true;
   setStatus("Running");
   updateButtons();
@@ -144,7 +174,9 @@ resetBtn.onclick = () => {
   resetUI();
   if (sourceImageData) {
     ctx.putImageData(sourceImageData, 0, 0);
-    createContext();
+  }
+  if (hasContext) {
+    worker.postMessage({ type: "destroy" });
   }
   setStatus("Reset");
 };
@@ -171,7 +203,8 @@ imageInput.onchange = () => {
     ctx.drawImage(img, 0, 0, width, height);
     sourceImageData = ctx.getImageData(0, 0, width, height);
     resetUI();
-    createContext();
+    updateButtons();
+    setStatus("Ready to start");
   };
   img.src = URL.createObjectURL(file);
 };

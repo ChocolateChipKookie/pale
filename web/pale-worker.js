@@ -2,7 +2,7 @@
  * @typedef {Object} PaleExports
  * @property {WebAssembly.Memory} memory
  * @property {() => number} pale_get_allocator
- * @property {(alloc: number, width: number, height: number, capacity: number, seed: bigint) => number} pale_create
+ * @property {(alloc: number, width: number, height: number, capacity: number, seed: bigint, enable_alpha: number) => number} pale_create
  * @property {(alloc: number, ctx: number) => number} pale_destroy
  * @property {(ctx: number) => number} pale_get_target_image
  * @property {(ctx: number) => bigint} pale_evaluate_best_solution
@@ -161,6 +161,7 @@ onmessage = async (e) => {
         data.height,
         data.capacity,
         BigInt(data.seed),
+        data.enableAlpha ? 1 : 0,
       );
       if (ctxPtr === 0) {
         postMessage({ type: "error", message: "pale_create failed" });

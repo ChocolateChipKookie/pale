@@ -42,6 +42,7 @@ const Context = struct {
         height: i32,
         capacity: u32,
         seed: u64,
+        enable_alpha: bool,
     ) !*Context {
         const ctx = alloc.create(Context) catch |e| {
             std.log.err("Failed to allocate context", .{});
@@ -107,7 +108,7 @@ const Context = struct {
         ctx.random = ctx.prng.random();
 
         // Mutations
-        ctx.mutation = CombinedMutation.init(&ctx.random, width, height);
+        ctx.mutation = CombinedMutation.init(&ctx.random, width, height, enable_alpha);
         ctx.iteration_count = 0;
         return ctx;
     }
@@ -134,6 +135,7 @@ pub export fn pale_create(
     height: i32,
     capacity: u32,
     seed: u64,
+    enable_alpha: u8,
 ) ?*Context {
     return Context.init(
         alloc.*,
@@ -141,6 +143,7 @@ pub export fn pale_create(
         height,
         capacity,
         seed,
+        enable_alpha != 0,
     ) catch null;
 }
 

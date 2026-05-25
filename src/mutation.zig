@@ -7,12 +7,14 @@ const AddMutation = struct {
     rng: *const std.Random,
     imageWidth: i32,
     imageHeight: i32,
+    enable_alpha: bool,
 
-    pub fn init(rng: *const std.Random, imageWidth: i32, imageHeight: i32) AddMutation {
+    pub fn init(rng: *const std.Random, imageWidth: i32, imageHeight: i32, enable_alpha: bool) AddMutation {
         return AddMutation{
             .rng = rng,
             .imageWidth = imageWidth,
             .imageHeight = imageHeight,
+            .enable_alpha = enable_alpha,
         };
     }
 
@@ -23,7 +25,7 @@ const AddMutation = struct {
         const dx = self.rng.intRangeAtMost(i32, -sizeRange, sizeRange);
         const dy = self.rng.intRangeAtMost(i32, -sizeRange, sizeRange);
         var color = Color.fromInt(self.rng.int(u32));
-        color.a = 255;
+        if (!self.enable_alpha) color.a = 255;
 
         const rect: Rectangle = .{
             .x = @min(x, x + dx),
@@ -89,9 +91,10 @@ const ResizeMoveMutation = struct {
 
 const ColorMutation = struct {
     rng: *const std.Random = undefined,
+    enable_alpha: bool = false,
 
-    pub fn init(rng: *const std.Random) ColorMutation {
-        return ColorMutation{ .rng = rng };
+    pub fn init(rng: *const std.Random, enable_alpha: bool) ColorMutation {
+        return ColorMutation{ .rng = rng, .enable_alpha = enable_alpha };
     }
 
     pub fn mutateIndexed(self: ColorMutation, solution: *Solution, index: usize) void {
@@ -106,7 +109,11 @@ const ColorMutation = struct {
         color.r = @intCast(@mod(@as(i32, item.color.r) + dr, 256));
         color.g = @intCast(@mod(@as(i32, item.color.g) + dg, 256));
         color.b = @intCast(@mod(@as(i32, item.color.b) + db, 256));
-        std.log.debug("Color mutation: x={} y={} b={}", .{ color.r, color.g, color.b });
+        if (self.enable_alpha) {
+            const da = self.rng.intRangeAtMost(i32, -colorDiffRange, colorDiffRange);
+            color.a = @intCast(@mod(@as(i32, item.color.a) + da, 256));
+        }
+        std.log.debug("Color mutation: r={} g={} b={} a={}", .{ color.r, color.g, color.b, color.a });
     }
 
     pub fn mutate(self: ColorMutation, solution: *Solution) void {
@@ -166,11 +173,11 @@ const SplitAndMutateMutation = struct {
     resizeMoveMutation: ResizeMoveMutation,
     colorMutation: ColorMutation,
 
-    pub fn init(rng: *const std.Random) SplitAndMutateMutation {
+    pub fn init(rng: *const std.Random, enable_alpha: bool) SplitAndMutateMutation {
         return SplitAndMutateMutation{
             .rng = rng,
             .resizeMoveMutation = ResizeMoveMutation.init(rng),
-            .colorMutation = ColorMutation.init(rng),
+            .colorMutation = ColorMutation.init(rng, enable_alpha),
         };
     }
 
@@ -238,19 +245,15 @@ pub const CombinedMutation = struct {
     weights: [6]i32,
     rng: *const std.Random,
 
-    pub fn init(rng: *const std.Random, imageWidth: i32, imageHeight: i32) CombinedMutation {
+    pub fn init(rng: *const std.Random, imageWidth: i32, imageHeight: i32, enable_alpha: bool) CombinedMutation {
         return CombinedMutation{
             .rng = rng,
             .mutations = .{
                 .{
-                    .add = AddMutation.init(
-                        rng,
-                        imageWidth,
-                        imageHeight,
-                    ),
+                    .add = AddMutation.init(rng, imageWidth, imageHeight, enable_alpha),
                 },
                 .{
-                    .color = ColorMutation.init(rng),
+                    .color = ColorMutation.init(rng, enable_alpha),
                 },
                 .{
                     .resizeMove = ResizeMoveMutation.init(rng),
@@ -262,7 +265,7 @@ pub const CombinedMutation = struct {
                     .swap = SwapMutation.init(rng),
                 },
                 .{
-                    .splitAndMutate = SplitAndMutateMutation.init(rng),
+                    .splitAndMutate = SplitAndMutateMutation.init(rng, enable_alpha),
                 },
             },
             .weights = .{

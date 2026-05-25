@@ -81,10 +81,70 @@ pub const Canvas = struct {
         const x_end: usize = @intCast(@max(0, @min(rect.x + rect.width, @as(i32, @intCast(self.width)))));
         const y_start: usize = @intCast(@max(0, @min(rect.y, self.height)));
         const y_end: usize = @intCast(@max(0, @min(rect.y + rect.height, @as(i32, @intCast(self.height)))));
+
+        if (color.a == 0) return;
+        if (color.a == 255) {
+            for (y_start..y_end) |y| {
+                const row_start = y * self.width;
+                const row = self.data[(row_start + x_start)..(row_start + x_end)];
+                @memset(row, color);
+            }
+            return;
+        }
+
+        // Approximate `* a / 255` as `* a / 256` (i.e. `>> 8`). Off by at most
+        // 1 unit per channel. Inv-alpha for the canvas's alpha lane is 256 so
+        // that `dst.a * 256 >> 8 == dst.a`, preserving canvas opacity.
+        const PIXELS_PER_BLOCK = 4;
+        const VEC = PIXELS_PER_BLOCK * 4;
+        const VecU8 = @Vector(VEC, u8);
+        const VecU16 = @Vector(VEC, u16);
+
+        const a16: u16 = color.a;
+        const r16: u16 = color.r;
+        const g16: u16 = color.g;
+        const b16: u16 = color.b;
+        const ra = r16 * a16;
+        const ga = g16 * a16;
+        const ba = b16 * a16;
+        const inv_a: u16 = 255 - a16;
+
+        const src_mul: VecU16 = .{
+            ra, ga, ba, 0,
+            ra, ga, ba, 0,
+            ra, ga, ba, 0,
+            ra, ga, ba, 0,
+        };
+        const inv_a_v: VecU16 = .{
+            inv_a, inv_a, inv_a, 256,
+            inv_a, inv_a, inv_a, 256,
+            inv_a, inv_a, inv_a, 256,
+            inv_a, inv_a, inv_a, 256,
+        };
+        const bias: VecU16 = @splat(128);
+        const shift: VecU16 = @splat(8);
+
         for (y_start..y_end) |y| {
             const row_start = y * self.width;
             const row = self.data[(row_start + x_start)..(row_start + x_end)];
-            @memset(row, color);
+            const row_bytes: [*]u8 = @ptrCast(row.ptr);
+
+            var i: usize = 0;
+            const vec_end = (row.len / PIXELS_PER_BLOCK) * PIXELS_PER_BLOCK;
+            while (i < vec_end) : (i += PIXELS_PER_BLOCK) {
+                const chunk: *[VEC]u8 = @ptrCast(row_bytes + i * 4);
+                const dst_u8: VecU8 = chunk.*;
+                const dst_u16: VecU16 = dst_u8;
+                const blended = (src_mul + dst_u16 * inv_a_v + bias) >> shift;
+                const result: VecU8 = @truncate(blended);
+                chunk.* = result;
+            }
+            while (i < row.len) : (i += 1) {
+                const p = &row[i];
+                p.r = @intCast((ra + @as(u16, p.r) * inv_a + 128) >> 8);
+                p.g = @intCast((ga + @as(u16, p.g) * inv_a + 128) >> 8);
+                p.b = @intCast((ba + @as(u16, p.b) * inv_a + 128) >> 8);
+            }
         }
     }
 };

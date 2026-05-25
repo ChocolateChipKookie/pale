@@ -4,7 +4,7 @@ const exports = @import("wasm_exports.zig");
 test "full export cycle on a small canvas" {
     const alloc = std.testing.allocator;
 
-    const ctx = exports.pale_create(&alloc, 32, 32, 100, 42) orelse
+    const ctx = exports.pale_create(&alloc, 32, 32, 100, 42, 0) orelse
         return error.PaleCreateFailed;
     defer std.debug.assert(exports.pale_destroy(&alloc, ctx));
 
@@ -36,13 +36,13 @@ test "pale_get_allocator returns a non-null pointer" {
 test "iteration counter resets across context lifecycles" {
     const alloc = std.testing.allocator;
 
-    const first = exports.pale_create(&alloc, 32, 32, 100, 1) orelse
+    const first = exports.pale_create(&alloc, 32, 32, 100, 1, 0) orelse
         return error.PaleCreateFailed;
     _ = exports.pale_run_steps(first, 16);
     try std.testing.expectEqual(@as(u64, 16), exports.pale_get_iterations(first));
     std.debug.assert(exports.pale_destroy(&alloc, first));
 
-    const second = exports.pale_create(&alloc, 32, 32, 100, 2) orelse
+    const second = exports.pale_create(&alloc, 32, 32, 100, 2, 0) orelse
         return error.PaleCreateFailed;
     defer std.debug.assert(exports.pale_destroy(&alloc, second));
     _ = exports.pale_run_steps(second, 4);

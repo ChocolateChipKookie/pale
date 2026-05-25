@@ -31,10 +31,17 @@ fn imageToCanvas(alloc: std.mem.Allocator, image: rl.Image) !Canvas {
     return result;
 }
 
-pub fn main() anyerror!void {
+pub fn main(init: std.process.Init.Minimal) anyerror!void {
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
+
+    var enable_alpha = false;
+    var arg_it = std.process.Args.Iterator.init(init.args);
+    _ = arg_it.skip();
+    while (arg_it.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--alpha")) enable_alpha = true;
+    }
 
     var io_state: std.Io.Threaded = .init_single_threaded;
     defer io_state.deinit();
@@ -79,7 +86,7 @@ pub fn main() anyerror!void {
     var test_solution = try best_solution.clone(alloc);
     defer test_solution.deinit(alloc);
 
-    const mutation = CombinedMutation.init(&rng, target_image.width, target_image.height);
+    const mutation = CombinedMutation.init(&rng, target_image.width, target_image.height, enable_alpha);
 
     var buffer: [64]u8 = undefined;
     var counter: i32 = 0;
