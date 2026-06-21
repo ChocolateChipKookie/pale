@@ -179,6 +179,11 @@ canvas {
   image-rendering: pixelated;
 }
 
+canvas.dragover {
+  outline: 2px dashed #3b82f6;
+  outline-offset: 4px;
+}
+
 .stats {
   display: flex;
   align-items: center;
@@ -229,14 +234,94 @@ canvas {
 }
 
 #downloadBtn {
-  background: var(--btn-bg);
-  color: var(--heading);
-  font-size: 0.8rem;
-  padding: 0.4rem 0.75rem;
+  background: #8b5cf6;
+  color: #fff;
 }
 
 #downloadBtn:hover:not(:disabled) {
+  background: #7c3aed;
+}
+
+.examples {
+  margin-bottom: 2.5rem;
+  text-align: center;
+}
+
+.funky-btn {
+  font-size: 1.75rem;
+  line-height: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  background: var(--btn-bg);
+  color: var(--heading);
+  transition: background 0.2s, transform 0.15s ease;
+}
+
+.funky-btn:hover:not(:disabled) {
   background: var(--btn-bg-hover);
+  transform: scale(1.08);
+}
+
+.thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+.thumb-grid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--input-bg);
+  transition: outline 0.1s, transform 0.1s;
+}
+
+.thumb-grid img:hover {
+  outline: 2px solid #8b5cf6;
+  transform: scale(1.03);
+}
+
+.post {
+  margin-top: 3rem;
+  line-height: 1.6;
+}
+
+.post h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--heading);
+  margin: 2.5rem 0 0.75rem;
+}
+
+.post h2:first-child {
+  margin-top: 0;
+}
+
+.post p {
+  margin: 0 0 1rem;
+}
+
+.post code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+.post a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--text-muted);
+  text-underline-offset: 2px;
+}
+
+.post a:hover {
+  text-decoration-color: var(--text);
 }
 
 @media (max-width: 600px) {

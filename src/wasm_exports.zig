@@ -232,3 +232,13 @@ pub export fn pale_get_iterations(context: ?*Context) u64 {
 
     return ctx.iteration_count;
 }
+
+/// Get number of rectangles in the best solution
+pub export fn pale_get_rectangle_count(context: ?*Context) u32 {
+    const ctx = context orelse {
+        std.log.warn("Passed context is null", .{});
+        return 0;
+    };
+
+    return @intCast(ctx.best_solution.data.items.len);
+}

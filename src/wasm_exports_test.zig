@@ -15,6 +15,7 @@ test "full export cycle on a small canvas" {
     _ = exports.pale_evaluate_best_solution(ctx);
 
     try std.testing.expectEqual(@as(u64, 16), exports.pale_get_iterations(ctx));
+    try std.testing.expect(exports.pale_get_rectangle_count(ctx) <= 100);
 }
 
 test "null-context handling" {
@@ -26,6 +27,7 @@ test "null-context handling" {
     try std.testing.expect(exports.pale_get_best_image(null) == null);
     try std.testing.expectEqual(@as(u64, 0), exports.pale_evaluate_best_solution(null));
     try std.testing.expectEqual(@as(u64, 0), exports.pale_get_iterations(null));
+    try std.testing.expectEqual(@as(u32, 0), exports.pale_get_rectangle_count(null));
 }
 
 test "pale_get_allocator returns a non-null pointer" {

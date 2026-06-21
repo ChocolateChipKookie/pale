@@ -9,7 +9,11 @@ const downloadBtn = /** @type {HTMLButtonElement} */ (document.getElementById("d
 const imageInput = /** @type {HTMLInputElement} */ (document.getElementById("imageInput"));
 const alphaInput = /** @type {HTMLInputElement} */ (document.getElementById("alphaInput"));
 
+const presetBtn = /** @type {HTMLButtonElement} */ (document.getElementById("presetBtn"));
+const thumbGrid = /** @type {HTMLElement} */ (document.getElementById("thumbGrid"));
+
 const iterationsEl = /** @type {HTMLElement} */ (document.getElementById("iterations"));
+const rectanglesEl = /** @type {HTMLElement} */ (document.getElementById("rectangles"));
 const errorEl = /** @type {HTMLElement} */ (document.getElementById("error"));
 const statusEl = /** @type {HTMLElement} */ (document.getElementById("status"));
 const themeBtn = /** @type {HTMLButtonElement} */ (document.getElementById("themeBtn"));
@@ -33,6 +37,7 @@ function setStatus(s) {
 
 function resetUI() {
   iterationsEl.textContent = "0";
+  rectanglesEl.textContent = "0";
   errorEl.textContent = "-";
   startBtn.textContent = "Start";
 }
@@ -63,6 +68,7 @@ function updateButtons() {
     isRunning ? "Stop first" : "No active session — press Start",
   );
   setDisabled(imageInput, isRunning, "Stop first");
+  setDisabled(presetBtn, isRunning, "Stop first");
   setDisabled(alphaInput, hasContext, "Press Reset to change");
   setDisabled(downloadBtn, !sourceImageData, "Load an image first");
 }
@@ -112,7 +118,7 @@ function createContext() {
 }
 
 worker.onmessage = (/** @type {MessageEvent} */ e) => {
-  const { type, pixels, fitness, iterations, message } = e.data;
+  const { type, pixels, fitness, iterations, rectangles, message } = e.data;
   switch (type) {
     case "ready":
       setStatus("Ready");
@@ -128,6 +134,7 @@ worker.onmessage = (/** @type {MessageEvent} */ e) => {
     case "frame":
       latestFrame = pixels;
       iterationsEl.textContent = iterations.toLocaleString();
+      rectanglesEl.textContent = rectangles.toLocaleString();
       errorEl.textContent = fitness.toLocaleString();
       requestAnimationFrame(render);
       break;
@@ -181,33 +188,91 @@ resetBtn.onclick = () => {
   setStatus("Reset");
 };
 
+/** @param {HTMLImageElement} img */
+function applyImage(img) {
+  if (hasContext) {
+    worker.postMessage({ type: "destroy" });
+    hasContext = false;
+  }
+
+  const maxDim = 720;
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  width = Math.round(img.width * scale);
+  height = Math.round(img.height * scale);
+
+  canvas.width = width;
+  canvas.height = height;
+
+  ctx.drawImage(img, 0, 0, width, height);
+  sourceImageData = ctx.getImageData(0, 0, width, height);
+  resetUI();
+  updateButtons();
+  setStatus("Ready to start");
+}
+
+/** @param {File} file */
+function loadImageFile(file) {
+  if (!file.type.startsWith("image/")) return;
+  const img = new Image();
+  img.onload = () => applyImage(img);
+  img.src = URL.createObjectURL(file);
+}
+
+/** @param {string} url */
+function loadImageFromUrl(url) {
+  const img = new Image();
+  img.onload = () => applyImage(img);
+  img.src = url;
+}
+
 imageInput.onchange = () => {
   const file = imageInput.files?.[0];
-  if (!file) return;
-
-  const img = new Image();
-  img.onload = () => {
-    if (hasContext) {
-      worker.postMessage({ type: "destroy" });
-      hasContext = false;
-    }
-
-    const maxDim = 720;
-    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-    width = Math.round(img.width * scale);
-    height = Math.round(img.height * scale);
-
-    canvas.width = width;
-    canvas.height = height;
-
-    ctx.drawImage(img, 0, 0, width, height);
-    sourceImageData = ctx.getImageData(0, 0, width, height);
-    resetUI();
-    updateButtons();
-    setStatus("Ready to start");
-  };
-  img.src = URL.createObjectURL(file);
+  if (file) loadImageFile(file);
 };
+
+canvas.ondragover = (/** @type {DragEvent} */ e) => {
+  if (isRunning) return;
+  e.preventDefault();
+  canvas.classList.add("dragover");
+};
+
+canvas.ondragleave = () => {
+  canvas.classList.remove("dragover");
+};
+
+canvas.ondrop = (/** @type {DragEvent} */ e) => {
+  e.preventDefault();
+  canvas.classList.remove("dragover");
+  if (isRunning) return;
+  const file = e.dataTransfer?.files?.[0];
+  if (file) loadImageFile(file);
+};
+
+// Examples: fetch the manifest on click and populate the grid, then replace
+// the button with the grid. Nothing is requested until the button is pressed.
+async function loadPresets() {
+  try {
+    const res = await fetch("images.json");
+    /** @type {string[]} */
+    const names = await res.json();
+    for (const name of names) {
+      const img = new Image();
+      img.src = `${name}.thumb.png`;
+      img.alt = name;
+      img.onclick = () => {
+        if (isRunning) return;
+        loadImageFromUrl(`${name}.png`);
+      };
+      thumbGrid.appendChild(img);
+    }
+    presetBtn.hidden = true;
+    thumbGrid.hidden = false;
+  } catch (e) {
+    console.error(`Failed to load image manifest: ${e}`);
+  }
+}
+
+presetBtn.onclick = loadPresets;
 
 downloadBtn.onclick = () => {
   canvas.toBlob((blob) => {

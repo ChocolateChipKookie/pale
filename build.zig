@@ -91,6 +91,78 @@ pub fn build(b: *std.Build) void {
         install_wasm.step.dependOn(&install.step);
     }
 
+    // Resize resources/images/* into the web output dir at build time. Optional
+    // so the wasm size-budget CI job can skip raylib's desktop (GL/X11) deps.
+    const gen_thumbnails = b.option(bool, "thumbnails", "Generate example thumbnails (needs raylib desktop deps)") orelse true;
+    if (gen_thumbnails) {
+        const thumbnail_dep = b.dependency("raylib_zig", .{
+            .target = target,
+            .optimize = .ReleaseSafe,
+        });
+        const thumbnail_mod = b.createModule(.{
+            .root_source_file = b.path("src/thumbnail.zig"),
+            .target = target,
+            .optimize = .ReleaseSafe,
+        });
+        thumbnail_mod.addImport("raylib", thumbnail_dep.module("raylib"));
+        thumbnail_mod.linkLibrary(thumbnail_dep.artifact("raylib"));
+
+        const thumbnail_exe = b.addExecutable(.{
+            .name = "thumbnail",
+            .root_module = thumbnail_mod,
+        });
+        // LTO chokes on the system .so paths in raylib's archive.
+        thumbnail_exe.lto = .none;
+
+        const run_thumbnails = b.addRunArtifact(thumbnail_exe);
+        const thumbnails_out = run_thumbnails.addOutputDirectoryArg("thumbnails");
+        run_thumbnails.addArgs(&.{ "256", "720" });
+
+        // Enumerate sources, sorted for a stable cache key and grid order.
+        const images_dir = "resources/images";
+        const io = b.graph.io;
+        var image_names: std.ArrayList([]const u8) = .empty;
+        if (b.build_root.handle.openDir(io, images_dir, .{ .iterate = true })) |images_const| {
+            var images = images_const;
+            defer images.close(io);
+            var it = images.iterate();
+            while (it.next(io) catch @panic("failed to read " ++ images_dir)) |entry| {
+                if (entry.kind != .file) continue;
+                if (!std.ascii.endsWithIgnoreCase(entry.name, ".png")) continue;
+                image_names.append(b.allocator, b.dupe(entry.name)) catch @panic("OOM");
+            }
+        } else |_| {}
+        std.mem.sort([]const u8, image_names.items, {}, struct {
+            fn lessThan(_: void, a: []const u8, c: []const u8) bool {
+                return std.mem.lessThan(u8, a, c);
+            }
+        }.lessThan);
+
+        // File args (not addDirectoryArg) so the cache key tracks image contents.
+        // images.json lists the base names for the web thumbnail picker.
+        var manifest: std.ArrayList(u8) = .empty;
+        manifest.append(b.allocator, '[') catch @panic("OOM");
+        for (image_names.items, 0..) |name, i| {
+            run_thumbnails.addFileArg(b.path(b.fmt("{s}/{s}", .{ images_dir, name })));
+            const stem = name[0 .. name.len - ".png".len];
+            if (i != 0) manifest.append(b.allocator, ',') catch @panic("OOM");
+            manifest.appendSlice(b.allocator, b.fmt("\"{s}\"", .{stem})) catch @panic("OOM");
+        }
+        manifest.append(b.allocator, ']') catch @panic("OOM");
+
+        const wf = b.addWriteFiles();
+        const manifest_lp = wf.add("images.json", manifest.items);
+        const install_manifest = b.addInstallFileWithDir(manifest_lp, .{ .custom = "web" }, "images.json");
+
+        const install_thumbnails = b.addInstallDirectory(.{
+            .source_dir = thumbnails_out,
+            .install_dir = .{ .custom = "web" },
+            .install_subdir = "",
+        });
+        install_wasm.step.dependOn(&install_thumbnails.step);
+        install_wasm.step.dependOn(&install_manifest.step);
+    }
+
     const wasm_step = b.step("wasm", "Build WASM for browser");
     wasm_step.dependOn(&install_wasm.step);
 

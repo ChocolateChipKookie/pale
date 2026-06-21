@@ -38,7 +38,7 @@ jobs:
       - uses: ${{ secrets.ACTIONS_URL }}/checkout@main
 
       - name: Build wasm (release-small)
-        run: zig build wasm --release=small
+        run: zig build wasm --release=small -Dthumbnails=false
 
       - name: Check gzipped size budget
         run: |

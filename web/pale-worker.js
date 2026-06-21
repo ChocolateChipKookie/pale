@@ -9,6 +9,7 @@
  * @property {(ctx: number, steps: number) => bigint} pale_run_steps
  * @property {(ctx: number) => number} pale_get_best_image
  * @property {(ctx: number) => number} pale_get_iterations
+ * @property {(ctx: number) => number} pale_get_rectangle_count
  */
 
 // Classes
@@ -133,7 +134,11 @@ function runLoop() {
     return;
   }
 
-  postMessage({ type: "frame", pixels, fitness, iterations }, [pixels.buffer]);
+  const rectangles = WASM.exports.pale_get_rectangle_count(paleCtx.ptr);
+
+  postMessage({ type: "frame", pixels, fitness, iterations, rectangles }, [
+    pixels.buffer,
+  ]);
   setTimeout(runLoop, 0);
 }
 

@@ -16,6 +16,7 @@
     <button id="startBtn" disabled>Start</button>
     <button id="stopBtn" disabled>Stop</button>
     <button id="resetBtn" disabled>Reset</button>
+    <button id="downloadBtn" disabled>Download</button>
     <label><input type="checkbox" id="alphaInput"> Alpha</label>
   </div>
 
@@ -25,13 +26,49 @@
     <div class="stats-left"></div>
     <div class="stats-center">
       <span>Iterations: <strong id="iterations">0</strong></span> |
+      <span>Rectangles: <strong id="rectangles">0</strong></span> |
       <span>Error: <strong id="error">-</strong></span> |
       <span>Status: <strong id="status">Loading...</strong></span>
     </div>
-    <div class="stats-right">
-      <button id="downloadBtn" disabled>Download</button>
-    </div>
+    <div class="stats-right"></div>
   </div>
+
+  <article class="post">
+    <div class="examples">
+      <button id="presetBtn" type="button" class="funky-btn" title="Load examples" aria-label="Load examples">🎨</button>
+      <div class="thumb-grid" id="thumbGrid" hidden></div>
+    </div>
+
+    <h2>What this is</h2>
+    <p>
+      TODO: one-paragraph pitch — image approximation via rectangles, runs in the browser via WASM, fits in under 15 KB gzipped.
+    </p>
+
+    <h2>The algorithm</h2>
+    <p>
+      TODO: hill climbing over a list of rectangles, mutate-then-evaluate loop, partial region evaluation for speed.
+    </p>
+
+    <h2>Going freestanding</h2>
+    <p>
+      TODO: removing the emscripten/raylib dependency, the writergate-era stdlib fallout, the custom <code>logFn</code>.
+    </p>
+
+    <h2>Shrinking the binary</h2>
+    <p>
+      TODO: the <code>preferred_optimize_mode</code> trap that hid <code>--release=small</code>; the self-rolled tiny formatter; <code>wasm-opt -Oz</code>.
+    </p>
+
+    <h2>Alpha blending and SIMD</h2>
+    <p>
+      TODO: why naive alpha was 6× slower; <code>@Vector</code> for the blend; native vs wasm SIMD width.
+    </p>
+
+    <h2>What I learned</h2>
+    <p>
+      TODO: closing thoughts.
+    </p>
+  </article>
 
   <script src="main.js"></script>
 </body>
