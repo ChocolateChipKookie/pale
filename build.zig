@@ -81,7 +81,7 @@ pub fn build(b: *std.Build) void {
         .dest_dir = .{ .override = .{ .custom = "web" } },
     });
 
-    const web_files = [_][]const u8{ "index.html", "style.css", "main.js", "pale-worker.js" };
+    const web_files = [_][]const u8{ "index.html", "style.css", "main.js", "pale-worker.js", "favicon.png" };
     for (web_files) |file| {
         const install = b.addInstallFileWithDir(
             b.path(b.fmt("web/{s}", .{file})),

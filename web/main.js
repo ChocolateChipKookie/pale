@@ -1,22 +1,46 @@
 // DOM elements
-const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
+const canvas = /** @type {HTMLCanvasElement} */ (
+  document.getElementById("canvas")
+);
 const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
 
-const startBtn = /** @type {HTMLButtonElement} */ (document.getElementById("startBtn"));
-const stopBtn = /** @type {HTMLButtonElement} */ (document.getElementById("stopBtn"));
-const resetBtn = /** @type {HTMLButtonElement} */ (document.getElementById("resetBtn"));
-const downloadBtn = /** @type {HTMLButtonElement} */ (document.getElementById("downloadBtn"));
-const imageInput = /** @type {HTMLInputElement} */ (document.getElementById("imageInput"));
-const alphaInput = /** @type {HTMLInputElement} */ (document.getElementById("alphaInput"));
+const startBtn = /** @type {HTMLButtonElement} */ (
+  document.getElementById("startBtn")
+);
+const stopBtn = /** @type {HTMLButtonElement} */ (
+  document.getElementById("stopBtn")
+);
+const resetBtn = /** @type {HTMLButtonElement} */ (
+  document.getElementById("resetBtn")
+);
+const downloadBtn = /** @type {HTMLButtonElement} */ (
+  document.getElementById("downloadBtn")
+);
+const imageInput = /** @type {HTMLInputElement} */ (
+  document.getElementById("imageInput")
+);
+const alphaInput = /** @type {HTMLInputElement} */ (
+  document.getElementById("alphaInput")
+);
 
-const presetBtn = /** @type {HTMLButtonElement} */ (document.getElementById("presetBtn"));
-const thumbGrid = /** @type {HTMLElement} */ (document.getElementById("thumbGrid"));
+const presetBtn = /** @type {HTMLButtonElement} */ (
+  document.getElementById("presetBtn")
+);
+const thumbGrid = /** @type {HTMLElement} */ (
+  document.getElementById("thumbGrid")
+);
 
-const iterationsEl = /** @type {HTMLElement} */ (document.getElementById("iterations"));
-const rectanglesEl = /** @type {HTMLElement} */ (document.getElementById("rectangles"));
+const iterationsEl = /** @type {HTMLElement} */ (
+  document.getElementById("iterations")
+);
+const rectanglesEl = /** @type {HTMLElement} */ (
+  document.getElementById("rectangles")
+);
 const errorEl = /** @type {HTMLElement} */ (document.getElementById("error"));
 const statusEl = /** @type {HTMLElement} */ (document.getElementById("status"));
-const themeBtn = /** @type {HTMLButtonElement} */ (document.getElementById("themeBtn"));
+const themeBtn = /** @type {HTMLButtonElement} */ (
+  document.getElementById("themeBtn")
+);
 
 // State
 const worker = new Worker("pale-worker.js");
@@ -49,7 +73,8 @@ function resetUI() {
  */
 function setDisabled(el, disabled, hint) {
   if ("disabled" in el) {
-    /** @type {HTMLButtonElement | HTMLInputElement} */ (el).disabled = disabled;
+    /** @type {HTMLButtonElement | HTMLInputElement} */ (el).disabled =
+      disabled;
   }
   if (disabled) el.title = hint;
   else el.removeAttribute("title");
@@ -110,7 +135,7 @@ function createContext() {
       width,
       height,
       fps: 30,
-      capacity: 1000,
+      capacity: 6,
       seed: Date.now(),
       enableAlpha: alphaInput.checked,
     },
