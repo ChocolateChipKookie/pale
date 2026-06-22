@@ -135,7 +135,7 @@ function createContext() {
       width,
       height,
       fps: 30,
-      capacity: 6,
+      capacity: 1000,
       seed: Date.now(),
       enableAlpha: alphaInput.checked,
     },
