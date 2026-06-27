@@ -8,6 +8,8 @@ Ideally it will have a graphical progress tracker, and in the best of all worlds
 
 ## Running
 
+Built with Zig 0.16.
+
 ### Native
 
 To build and run the app (skip the `run` if you just want to build it):
@@ -32,6 +34,17 @@ The optimization level is shared with the native build and defaults to `Debug`. 
 
 ```
 zig build wasm --release=small
+```
+
+### Deployment
+
+`web/nginx.conf` is a minimal config that serves the build output from `zig-out/web`. Copy `index.html`, `index.html.br`, the thumbnail PNGs and `images.json` into the server's `root` (`/var/www/pale`).
+
+It uses `brotli_static on`, which serves the pre-compressed `index.html.br` directly and requires the [`ngx_brotli`](https://github.com/google/ngx_brotli) module (not bundled with stock nginx). On Debian/Ubuntu install it via apt:
+
+```
+sudo apt install libnginx-mod-http-brotli-static
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ### Tests
