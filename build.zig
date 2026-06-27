@@ -50,10 +50,13 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     // WASM build
-    const wasm_target = b.resolveTargetQuery(.{
-        .cpu_arch = .wasm32,
-        .os_tag = .freestanding,
-    });
+    const wasm_target = b.resolveTargetQuery(
+        .{
+            .cpu_arch = .wasm32,
+            .os_tag = .freestanding,
+            .cpu_features_add = std.Target.wasm.featureSet(&.{.relaxed_simd}),
+        },
+    );
 
     const wasm_mod = b.addModule("pale-wasm", .{
         .root_source_file = b.path("src/root.zig"),
@@ -81,7 +84,7 @@ pub fn build(b: *std.Build) void {
         .dest_dir = .{ .override = .{ .custom = "web" } },
     });
 
-    const web_files = [_][]const u8{ "index.html", "style.css", "main.js", "pale-worker.js", "favicon.png" };
+    const web_files = [_][]const u8{ "index.html", "main.js", "pale-worker.js", "favicon.png" };
     for (web_files) |file| {
         const install = b.addInstallFileWithDir(
             b.path(b.fmt("web/{s}", .{file})),

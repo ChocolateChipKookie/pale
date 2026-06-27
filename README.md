@@ -43,19 +43,6 @@ zig build wasm-exports-test     # native Debug smoke-test of the wasm export sur
 
 `wasm-exports-test` builds `wasm_exports.zig` for the host (forced to `Debug`, `single_threaded`) and exercises every exported function through `std.testing.allocator`, so leaks, double-frees, and out-of-bounds access surface immediately.
 
-#### TODO
-
- [x] Make UI nicer
- [x] Move the wasm running to a worker
- [x] Remove raylib dependency for the wasm build (replace the image class with something self rolled)
- [x] Remove emscripten dependency (hopefully making the resulting bundle smaller)
- [x] Restructure wasm exports
- [ ] Add blog post (also check if the 14kb website is actually faster to load)
- [x] Make separate native target for testing the `wasm_exports.zig`, mostly for running sanitizers
- [x] Check how to write to console from freestanding build
- [x] Make adaptive number of iterations to keep FPS
- [x] Expose allocator to JS
-
 ## Progress
 
 Part of this project will be optimizing the both the algorithm, but also the efficiency of evaluating the solutions, and the program as a whole.

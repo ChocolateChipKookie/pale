@@ -135,7 +135,7 @@ function createContext() {
       width,
       height,
       fps: 30,
-      capacity: 1000,
+      capacity: 10000,
       seed: Date.now(),
       enableAlpha: alphaInput.checked,
     },
@@ -220,7 +220,7 @@ function applyImage(img) {
     hasContext = false;
   }
 
-  const maxDim = 720;
+  const maxDim = 480;
   const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
   width = Math.round(img.width * scale);
   height = Math.round(img.height * scale);
