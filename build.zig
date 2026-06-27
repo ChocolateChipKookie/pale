@@ -80,19 +80,30 @@ pub fn build(b: *std.Build) void {
     wasm.rdynamic = true;
     wasm.entry = .disabled;
 
-    const install_wasm = b.addInstallArtifact(wasm, .{
-        .dest_dir = .{ .override = .{ .custom = "web" } },
-    });
+    // Inline the web sources into one index.html, brotli it, enforce the
+    // budget: 10 * MSS = the "fits in 10 TCP packets" single-round-trip target.
+    const mss = 1460;
+    const size_budget = 10 * mss;
 
-    const web_files = [_][]const u8{ "index.html", "main.js", "pale-worker.js", "favicon.png" };
-    for (web_files) |file| {
-        const install = b.addInstallFileWithDir(
-            b.path(b.fmt("web/{s}", .{file})),
-            .{ .custom = "web" },
-            file,
-        );
-        install_wasm.step.dependOn(&install.step);
-    }
+    const bundle = b.addSystemCommand(&.{"python3"});
+    bundle.addFileArg(b.path("web/bundle.py"));
+    bundle.addFileArg(b.path("web/index.html"));
+    bundle.addFileArg(b.path("web/style.css"));
+    bundle.addFileArg(b.path("web/main.js"));
+    bundle.addFileArg(b.path("web/pale-worker.js"));
+    bundle.addFileArg(wasm.getEmittedBin());
+    bundle.addFileArg(b.path("web/favicon.png"));
+    const bundled_html = bundle.addOutputFileArg("index.html");
+    const bundled_br = bundle.addOutputFileArg("index.html.br");
+    bundle.addArg(b.fmt("{d}", .{size_budget}));
+    if (optimize == .ReleaseSmall) bundle.addArg("--enforce");
+
+    const wasm_step = b.step("wasm", "Build the self-contained web app");
+    wasm_step.dependOn(&b.addInstallFileWithDir(bundled_html, .{ .custom = "web" }, "index.html").step);
+    wasm_step.dependOn(&b.addInstallFileWithDir(bundled_br, .{ .custom = "web" }, "index.html.br").step);
+
+    const size_step = b.step("size", "Check the brotli size budget for index.html.br");
+    size_step.dependOn(&bundle.step);
 
     // Resize resources/images/* into the web output dir at build time. Optional
     // so the wasm size-budget CI job can skip raylib's desktop (GL/X11) deps.
@@ -162,12 +173,9 @@ pub fn build(b: *std.Build) void {
             .install_dir = .{ .custom = "web" },
             .install_subdir = "",
         });
-        install_wasm.step.dependOn(&install_thumbnails.step);
-        install_wasm.step.dependOn(&install_manifest.step);
+        wasm_step.dependOn(&install_thumbnails.step);
+        wasm_step.dependOn(&install_manifest.step);
     }
-
-    const wasm_step = b.step("wasm", "Build WASM for browser");
-    wasm_step.dependOn(&install_wasm.step);
 
     // Tests
     const mod_tests = b.addTest(.{
