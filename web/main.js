@@ -220,7 +220,7 @@ function applyImage(img) {
     hasContext = false;
   }
 
-  const maxDim = 480;
+  const maxDim = 720;
   const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
   width = Math.round(img.width * scale);
   height = Math.round(img.height * scale);
