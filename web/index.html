@@ -38,7 +38,7 @@
     <p>
         A couple of months ago I wanted to check how I feel about <a href="https://ziglang.org/">zig</a>, and while looking for a trial project I remembered a lab assignment I had at university.
 
-        The goal of the assignment was to write a program that would, given an input image, spit out a list of colored rectangles that when drawn after each other resemble the input image. For the lab assignment we just had to support grayscale opaque rectangles, but I wanted to make it a bit funky so I added support for colored, non-opaque rectangles (enabled by clicking the <code>Alpha</code> checkbox above the canvas).
+        The goal of the assignment was to write a program that would, given an input image, spit out a list of rectangles that when drawn resemble the input image. For the lab assignment we just had to support grayscale opaque rectangles, but I wanted to make it a bit funky so I added support for colored, non-opaque rectangles (enabled by clicking the <code>Alpha</code> checkbox above the canvas).
     </p>
     <p>
         You can either run it on the current placeholder, choose your own image by clicking <code>Choose File</code> above the canvas, or if you don't feel inspired use a photo from my collection:
@@ -50,15 +50,17 @@
     </div>
 
     <p>
-        In any case, if you want to take a look at the implementation, take a look <a href="https://github.com/ChocolateChipKookie/pale"> on github</a> or if you are specifically interested in how I incrementally improved the solution, take a look at the <a href="https://github.com/ChocolateChipKookie/pale#progress">README.md</a>.
+        In any case, if you are interested in the details, take a look <a href="https://github.com/ChocolateChipKookie/pale">on github</a> or if you are specifically interested in how I incrementally improved the solution, take a look at the <a href="https://github.com/ChocolateChipKookie/pale#progress">README.md</a>.
     </p>
+
     <h2>Footnotes</h2>
     <h3><a href="https://github.com/raysan5/raylib/commit/e2233acdb0d51d5f11f63d1b8550a766a962aac1">e2233ac</a></h3>
     <p>
         At some point while I was optimizing the evaluation function I noticed in the flamegraph that a significant chunk of the evaluation time was spent clearing the background.
-        A single call to <code>ImageClearBackground</code> was in fact taking up more time than drawing all the rectangles of a solution (at that point I did not support transparency).
+        A single call to <code>ImageClearBackground</code> was in fact taking up more time than drawing all the rectangles of a solution.
+        At that point there was no transparency support, so clearing should have been as fast as drawing a rectangle over the whole canvas.
         The issue ended up being an implementation detail in <code>raylib</code> where <code>ImageClearBackground</code> called <code>memcpy</code> for each pixel individually, whereas <code>ImageDrawRectangleRec</code> just did it for the first row, and then copied the whole row.
-        That was a problem because just the call to <code>memcpy</code> is expensive compared to the actual copying.
+        That was a problem because just the call to <code>memcpy</code> is expensive compared to the actual copying when the copied data is just 4 bytes.
     </p>
     <p>
         I <a href="https://github.com/raysan5/raylib/commit/e2233acdb0d51d5f11f63d1b8550a766a962aac1">improved</a> both functions by replacing the per-pixel <code>memcpy</code> with a loop that each iteration copies all already-filled pixels, doubling the total with each pass.
@@ -66,17 +68,24 @@
 
     <h3>14 kB</h3>
     <p>
-        Originally the app was written to run natively, and only later I made it run in the browser.
-        At that point I thought that it would be as easy as just configuring the <code>raylib emsdk</code> build, but that produced a bloated binary of a couple hundred <code>kB</code>.
-        Given I only used raylib for rendering (something a <code>&lt;canvas&gt;</code> element handles natively) I found it to be unnecessary for the browser build, so I rewrote the couple of functions I needed, and made a freestanding <code>WASM</code> build. That combined with a custom logger and <code>--release=small</code> brought the build size to <code>&lt;14 kB</code> across 5 files.
+        Originally the app was written to run natively, and I only got it running in the browser later when I wanted to show it to friends.
+        I thought that it would be as easy as configuring the <code>raylib emsdk</code> build, but that produced a bloated binary of several hundred <code>kB</code>.
+        To shrink the binary size I had to drop the <code>raylib</code> dependency from the browser build, which would allow me to use the <code>wasm-freestanding</code> target.
     </p>
     <p>
-        Now, at that point I thought I was stuck, because although the total size of all the files was <code>&lt;14 kB</code> gzipped, the source was split into several files and the <a href="https://endtimes.dev/why-your-website-should-be-under-14kb-in-size/">benefit of fitting the page into the first 10 TCP packets</a> was gone, because each file would have to be fetched separately.
-        But by pre-compressing the <code>WASM</code> before <code>base64</code> encoding it (and undoing the same in the JS) I managed to get the total size of the single page to <code>&lt;14 kB</code> (when compressed with <code>brotli</code>).
-        Gzipping before <code>base64</code> encoding is more effective than relying on <code>brotli</code> alone, because <code>base64</code> encoding breaks the compressibility of the <code>WASM</code>.
+        In the native build <code>raylib</code> was used in 2 places.
+        First for the UI and target image loading (something the browser supports natively with a bit of <code>JS + &lt;canvas&gt;</code> magic).
+        And secondly in the actual evaluation code, where an <code>Image</code> was used as the render target for the tentative solutions, something that is really easy to re-implement if you only need to support clearing the canvas and drawing axis aligned rectangles.
+        Self-rolling the render target proved useful later on when adding non-opaque rectangle support, as implementing SIMD accelerated alpha blending was trivial because it was in my codebase.
+        The rewrite combined with a custom logger and <code>--release=small</code> brought the compressed build size of the web page to <code>&lt;14 kB</code> over 5 files.
     </p>
     <p>
-        So in the case you did not load photos from my collection by clicking the button, the whole website should be <code>&lt;14 kB</code>. Funnily enough all of that was just vanity, because I control the server and I could have just bumped the initial congestion window size when serving this.
+        At that point I thought I was stuck, because although the total size of all the files was <code>&lt;14 kB</code> gzipped, the source was split into several files and the <a href="https://endtimes.dev/why-your-website-should-be-under-14kb-in-size/">benefit of fitting the page into the first 10 TCP packets</a> was gone, because each file would have to be fetched separately.
+        I tried inlining the style/app files into a single <code>HTML</code> but <code>base64</code> encoding the <code>WASM</code> killed its compressibility.
+        But, by pre-compressing the <code>WASM</code> before <code>base64</code> encoding it (and undoing the same in <code>JS</code>) I managed to get the total size of the inlined page to <code>&lt;14 kB</code> (when compressed with <code>brotli -11</code>).
+    </p>
+    <p>
+        So in case you didn't load photos from my collection by clicking the button, the whole website should be <code>&lt;14 kB</code>. Funnily enough all of that was just vanity, because I control the server and I could have just bumped the initial congestion window size when serving this.
     </p>
   </article>
   <script src="main.js"></script>
